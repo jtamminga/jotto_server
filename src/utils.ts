@@ -1,34 +1,54 @@
-// Fisher-Yates shuffle
-export const shuffle = function(array: any[]) {
+/**
+ * Shuffle array in place.
+ * Uses Fisher-Yates shuffle algorithm.
+ * @param array The array to shuffle
+ */
+export function shuffle<T>(array: T[]): void {
   for (let i = array.length - 1; i > 0; i--) {
     let j = Math.floor(Math.random() * (i + 1)); // random index from 0 to i
     [array[i], array[j]] = [array[j], array[i]];
   }
 };
 
-export const union = function(a, b) {
-  return [...new Set([...a, ...b])]
+/**
+ * Get the union of set A and B
+ * @param a Set A
+ * @param b Set B
+ */
+ export function union<T>(a: T[], b: T[]): T[] {
+  let x = new Set([...a, ...b]);
+  return Array.from(x.values());
 }
 
-export function intersectLen(a, b) {
+/**
+ * Get the size of set X where X = A ∩ B
+ * @param a Set A
+ * @param b Set B
+ */
+ export function numIntersect<T>(a: T[], b: T[]): number {
   let n = 0;
   for (let i = 0; i < a.length; i++) {
-      n += b.includes(a[i])
+      n += b.includes(a[i]) ? 1 : 0;
   }
 
-  return n
+  return n;
 }
 
-export function duplicates(chars: string | any[]) {
-  let hash = {}
-  for (let char of chars) {
-    hash[char] = hash[char] === undefined ? 1 : hash[char] + 1
+/**
+ * Check an array for duplicates
+ * @param items The items to check for duplicates
+ */
+ export function duplicates<T>(items: T[]): T[] {
+  const hash = new Map<T, number>();
+
+  for (let item of items) {
+    hash.set(item, (hash.get(item) ?? 0) + 1);
   }
 
-  let dups = []
-  for (let char in hash) {
-    if (hash[char] > 1) dups.push(char)
-  }
+  let dups: T[] = [];
+  hash.forEach((num, item) => {
+    if (num > 1) dups.push(item);
+  });
 
-  return dups
+  return dups;
 }

@@ -7,7 +7,7 @@ class MemorySessionStore implements SessionStore {
     this.sessions = new Map();
   }
 
-  findSession(id: string): Session {
+  findSession(id: string): Session | undefined {
     return this.sessions.get(id);
   }
 
@@ -17,6 +17,10 @@ class MemorySessionStore implements SessionStore {
 
   allSessions(): Session[] {
     return [...this.sessions.values()];
+  }
+
+  hasSession(id: string): boolean {
+    return this.sessions.has(id);
   }
 }
 

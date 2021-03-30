@@ -1,54 +1,90 @@
-import { intersectLen } from './utils';
+import { Guess } from './types';
+import { numIntersect } from './utils';
 
 class Player {
   private _userId: string;
-  private _word: string;
-  private _guesses: string[];
-  private _opponent: Player;
+  private _username: string;
+  private _word: string | undefined;
+  private _guesses: Guess[];
   private _won: boolean;
-  private _ready: boolean;
+  private _opponent: Player | undefined;
 
-  public get userId() : string {
+  place: number;
+
+  public get userId(): string {
     return this._userId;
   }
+
+  public get username(): string {
+    return this._username;
+  }
+
+  public get word(): string {
+    if (!this._word) {
+      throw new Error('Opponent does not have a word set');
+    }
+
+    return this._word;
+  }
   
-  public get won() : boolean {
+  public get won(): boolean {
     return this._won;
   }
   
-  public get ready() : boolean {
-    return this._ready;
+  public get ready(): boolean {
+    return this.hasWord();
   }
 
-  public get opponent() : Player {
+  public get opponent(): Player {
+    if (!this._opponent) {
+      throw new Error('Player does not have an opponent');
+    }
+
     return this._opponent;
   }
+  
+  public get guesses() : Guess[] {
+    return this._guesses;
+  }
+  
+  constructor(userId: string, username: string) {
+    this._userId = userId;
+    this._username = username;
+    this._word = undefined;
+    this._guesses = [];
+    this._won = false;
+    this._opponent = undefined;
 
-  public set opponent(player : Player) {
-    this._opponent = player;
+    this.place = 0;
   }
 
-  constructor(userId: string, opponent: Player) {
-    this._userId = userId;
-    this._word = null;
-    this._guesses = [];
-    this._ready = false;
-    this._won = false;
+  setOpponent(opponent: Player | undefined) {
     this._opponent = opponent;
   }
 
   addGuess(guess: string): number {
-    this._guesses.push(guess);
-    if (guess == this._opponent._word) {
-      this._won = true;
+    if (!this._opponent) {
+      throw new Error('Player does not have an opponent');
     }
 
-    return intersectLen(this._opponent._word, guess);
+    if (!this._opponent._word) {
+      throw new Error('Opponent does not have a word set');
+    }
+
+    if (guess === this._opponent._word) {
+      this._guesses.push({ guess, common: 5 });
+      this._won = true;
+      return 5;
+    }
+
+    const common = numIntersect([...this._opponent._word], [...guess]);
+    this._guesses.push({ guess, common });    
+
+    return common;
   }
 
   setWord(word: string) {
     this._word = word;
-    this._ready = true;
   } 
 
   hasWord(): boolean {
