@@ -55,9 +55,15 @@ io.on('connection', (socket: JottoSocket) => {
 
   socket.on('disconnect', userDisconnect.bind(this, socket));
 
+  // socket.onAny((event) => {
+  //   console.log(`[${event}]`.gray.bold, 'from'.gray, socket.username.gray.italic);
+  // });
+
   if (users.length === numPlayers) {
     if (gameCreated()) {
-      sendGameState(socket, getGame());
+      const game = getGame();
+      sendGameState(socket, game);
+      setupListeners(game);
     } else {
       sendUsers(socket);
       game = initializeGame(users);
@@ -163,6 +169,12 @@ function initializeGame(users: Session[]): Game {
     })
   });
 
+  setupListeners(game);
+
+  return game;
+}
+
+function setupListeners(game: Game) {
   // add listeners to each socket
   // these listeners depend on the game
   for (let socket of io.of('/').sockets.values()) {
@@ -170,8 +182,6 @@ function initializeGame(users: Session[]): Game {
     socket.on('submit_word', submitWord.bind(this, jottoSocket, game));
     socket.on('submit_guess', submitGuess.bind(this, jottoSocket, game));
   }
-
-  return game;
 }
 
 /**

@@ -88,7 +88,7 @@ class Player {
   } 
 
   hasWord(): boolean {
-    return this._word != null;
+    return this._word !== undefined;
   }
 }
 

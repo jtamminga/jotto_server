@@ -52,3 +52,18 @@ export function shuffle<T>(array: T[]): void {
 
   return dups;
 }
+
+/**
+ * Move items over a certain number of indexes
+ * @param items The items to move over
+ * @param offset The amount to move the items over by
+ * @returns The new array with the items moved over
+ */
+export function moveOver<T>(items: T[], offset = 1): T[] {
+  const arr = [...items];
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = items[(i + offset) % arr.length];
+  }
+
+  return arr;
+}

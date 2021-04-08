@@ -30,14 +30,16 @@ export interface UserState extends Session {
 }
 
 export interface GameStateRestore {
+  state: GameState,
   users: UserState[];
   playerOrder: string[];
-  word: string;
+  word: string | undefined;
   currentTurn: string | undefined;
   guesses: Guess[];
 }
 
 export enum GameState {
+  PICK_USERNAME, // make sure indexes match
   PICKING_WORD,
   STARTED,
   GAME_OVER

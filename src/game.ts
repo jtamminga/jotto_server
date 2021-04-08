@@ -1,6 +1,6 @@
 import Player from './player';
 import { GameState, GameStateRestore, Session } from './types';
-import { duplicates, shuffle } from './utils';
+import { duplicates, moveOver, shuffle } from './utils';
 
 class Game {
   private players: Player[];
@@ -144,10 +144,21 @@ class Game {
       throw new Error('Player not found');
     }
 
+    let playerOrder = this.getPlayerOrder();
+
+    // adjust the first player of the player order
+    // because the frontend uses the first userId for the "starting player"
+    if (this.curPlayer) {
+      let index = playerOrder.indexOf(this.curPlayer.userId);
+      let offset = playerOrder.length - index;
+      playerOrder = moveOver(playerOrder, offset);
+    }
+
     return {
+      state: this.state,
       users,
-      playerOrder: this.getPlayerOrder(),
-      word: player.word,
+      playerOrder,
+      word: player.hasWord() ? player.word : '',
       currentTurn: this.curPlayer?.userId,
       guesses: player.guesses
     };
