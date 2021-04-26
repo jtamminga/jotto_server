@@ -1,7 +1,7 @@
 import { Socket } from "socket.io";
 
 export interface Guess {
-  guess: string;
+  word: string;
   common: number;
 }
 
@@ -29,13 +29,21 @@ export interface UserState extends Session {
   ready: boolean;
 }
 
+export interface History {
+  from: string;
+  to: string;
+  word: string;
+  common: number;
+}
+
 export interface GameStateRestore {
   state: GameState,
   users: UserState[];
   playerOrder: string[];
-  word: string | undefined;
-  currentTurn: string | undefined;
-  guesses: Guess[];
+  word?: string;
+  currentTurn?: string;
+  // guesses: Guess[];
+  history: History[];
 }
 
 export enum GameState {

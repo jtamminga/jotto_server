@@ -1,5 +1,5 @@
 import Player from './player';
-import { GameState, GameStateRestore, Session } from './types';
+import { GameState, GameStateRestore, Session, History } from './types';
 import { duplicates, moveOver, shuffle } from './utils';
 
 class Game {
@@ -49,6 +49,43 @@ class Game {
     }
 
     return player;
+  }
+
+  private getUsers(sessions: Session[]) {
+    return sessions
+      .map(session => {
+        const player = this.getPlayer(session.userId);
+
+        return {
+          ...session,
+          won: player.won,
+          ready: player.ready
+        }
+      });
+  }
+
+  /*private*/ getGuessHistory(): History[] {
+    const n = this.players.length;
+    let history: History[] = [];
+    let cur = this.players[0];
+    
+    let i = 0, j = 0;
+    while (cur.guesses[i]) {
+      const from = cur.userId;
+      const to = cur.opponent.userId;
+      const guess = cur.guesses[i];
+
+      history.push({ from, to, ...guess });
+      
+      // advance
+      cur = cur.opponent;
+      if (++j == n) {
+        j = 0;
+        i++;
+      };
+    }
+
+    return history;
   }
 
   getPlayers(): Player[] {
@@ -123,27 +160,11 @@ class Game {
     };
   }
 
+  // need sessions for connected state
+  // maybe sink that with players then we don't need this
   restoreState(userId: string, sessions: Session[]): GameStateRestore {
-    const users = sessions
-      .map(session => {
-        const player = this.players.find(p => p.userId === session.userId);
-
-        if (!player) {
-          throw new Error('Player not found');
-        }
-
-        return {
-          ...session,
-          won: player.won,
-          ready: player.ready
-        }
-      });
-
-    const player = this.players.find(p => p.userId === userId);
-    if (!player) {
-      throw new Error('Player not found');
-    }
-
+    const users = this.getUsers(sessions);
+    const player = this.getPlayer(userId);
     let playerOrder = this.getPlayerOrder();
 
     // adjust the first player of the player order
@@ -160,7 +181,8 @@ class Game {
       playerOrder,
       word: player.hasWord() ? player.word : '',
       currentTurn: this.curPlayer?.userId,
-      guesses: player.guesses
+      // guesses: player.guesses
+      history: this.getGuessHistory()
     };
   }
 

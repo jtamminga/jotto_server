@@ -63,7 +63,7 @@ io.on('connection', (socket: JottoSocket) => {
     if (gameCreated()) {
       const game = getGame();
       sendGameState(socket, game);
-      setupListeners(game);
+      setupListeners(game, socket);
     } else {
       sendUsers(socket);
       game = initializeGame(users);
@@ -174,13 +174,24 @@ function initializeGame(users: Session[]): Game {
   return game;
 }
 
-function setupListeners(game: Game) {
+function setupListeners(game: Game, socket?: JottoSocket) {
+  const forSocket = (socket: JottoSocket) => {
+    socket.on('submit_word', submitWord.bind(this, socket, game));
+    socket.on('submit_guess', submitGuess.bind(this, socket, game));
+  }
+
+  if (socket) {
+    forSocket(socket);
+    return;
+  }
+
   // add listeners to each socket
   // these listeners depend on the game
   for (let socket of io.of('/').sockets.values()) {
-    let jottoSocket = socket as JottoSocket;
-    socket.on('submit_word', submitWord.bind(this, jottoSocket, game));
-    socket.on('submit_guess', submitGuess.bind(this, jottoSocket, game));
+    // let jottoSocket = socket as JottoSocket;
+    // socket.on('submit_word', submitWord.bind(this, jottoSocket, game));
+    // socket.on('submit_guess', submitGuess.bind(this, jottoSocket, game));
+    forSocket(socket as JottoSocket);
   }
 }
 
@@ -191,7 +202,7 @@ function setupListeners(game: Game) {
  */
 // @ts-ignore
 function submitWord(socket: JottoSocket, game: Game, word: string) {
-  console.group('word submitted'.blue);
+  console.group('word submitted'.magenta);
   console.log('user: ', socket.username);
   console.log('word: ', word.bold);
   console.groupEnd();
@@ -209,6 +220,10 @@ function submitGuess(socket: JottoSocket, game: Game, word: string) {
   console.log('word:  ', word);
   console.log('common:', result.common);
   console.log('won:   ', result.won);
+  console.groupEnd();
+
+  console.group('game history'.dim);
+  console.log('history', game.getGuessHistory());
   console.groupEnd();
 
   io.emit('turn', {

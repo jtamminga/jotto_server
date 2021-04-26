@@ -62,7 +62,7 @@ class Player {
     this._opponent = opponent;
   }
 
-  addGuess(guess: string): number {
+  addGuess(word: string): number {
     if (!this._opponent) {
       throw new Error('Player does not have an opponent');
     }
@@ -71,14 +71,14 @@ class Player {
       throw new Error('Opponent does not have a word set');
     }
 
-    if (guess === this._opponent._word) {
-      this._guesses.push({ guess, common: 5 });
+    if (word === this._opponent._word) {
+      this._guesses.push({ word, common: 5 });
       this._won = true;
       return 5;
     }
 
-    const common = numIntersect([...this._opponent._word], [...guess]);
-    this._guesses.push({ guess, common });    
+    const common = numIntersect([...this._opponent._word], [...word]);
+    this._guesses.push({ word, common });    
 
     return common;
   }
