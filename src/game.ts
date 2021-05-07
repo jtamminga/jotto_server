@@ -64,25 +64,25 @@ class Game {
       });
   }
 
-  /*private*/ getGuessHistory(): History[] {
-    const n = this.players.length;
-    let history: History[] = [];
-    let cur = this.players[0];
-    
-    let i = 0, j = 0;
-    while (cur.guesses[i]) {
-      const from = cur.userId;
-      const to = cur.opponent.userId;
-      const guess = cur.guesses[i];
+  getGuessHistory(): History[] {
+    const hasWon = (player: Player, round: number) =>
+      round >= player.guesses.length;
 
-      history.push({ from, to, ...guess });
-      
-      // advance
-      cur = cur.opponent;
-      if (++j == n) {
-        j = 0;
-        i++;
-      };
+    const numRounds = this.players.reduce((max, player) =>
+      max > player.guesses.length ? max : player.guesses.length, 0);
+
+    let history: History[] = [];
+
+    for (let round = 0; round < numRounds; round++) {
+      for (let cur of this.players) {
+        if (hasWon(cur, round)) continue;
+
+        const from = cur.userId;
+        const to = cur.opponent.userId;
+        const guess = cur.guesses[round];
+
+        history.push({ from, to, ...guess });
+      }
     }
 
     return history;
