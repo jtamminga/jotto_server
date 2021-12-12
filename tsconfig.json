@@ -21,7 +21,10 @@
 
     "rootDir": ".",
     "outDir": "build",
-    "removeComments": true
+    "removeComments": true,
+
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": [
     "src/**/*"

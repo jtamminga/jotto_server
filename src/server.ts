@@ -1,27 +1,37 @@
+import 'reflect-metadata'
 import MemorySessionStore from './memorySessionStore';
 import { randomBytes } from 'crypto';
 import Game from './game';
 import { Socket, Server } from 'socket.io';
-import { JottoSocket, SessionStore, Session, UserState } from './types';
+import { JottoSocket, SessionStore, Session, UserState, GameState } from './types';
 import 'colors';
+import { filter } from 'rxjs';
+import { GameEvents, isGameEvent, UserEvents } from './events';
+import Room from './room';
+import Player from './player';
+import { container } from 'tsyringe';
+import { EventBus } from './eventBus';
 
-let game: Game | undefined = undefined;
+// event bus
+const eventBus = container.resolve(EventBus)
+
+eventBus.events$
+  .pipe(filter(GameEvents.isStateChange))
+  .subscribe(onGameStateChange);
+
 const sessionStore: SessionStore = new MemorySessionStore();
 const randomId = () => randomBytes(8).toString('hex');
-const gameCreated = () => game !== undefined;
-const numPlayers = 2;
 
-function getGame(): Game {
-  if (game) return game;
-  throw new Error('Game is not instaniated');
-}
+// 
+let game: Game | undefined;
+const room = new Room(2);
 
 const io = new Server({
   cors: {
-    origin: "http://localhost:3000",
+    origin: "http://localhost:3000"
   }
 });
-
+isGameEvent
 // spin it up
 io.listen(3001);
 
@@ -51,27 +61,19 @@ io.use((socket: Socket, next) => {
 });
 
 io.on('connection', (socket: JottoSocket) => {
-  const users = userConnect(socket);
 
-  socket.on('disconnect', userDisconnect.bind(this, socket));
+  // setup listeners on connected socket
+  socket.on('disconnect', () => userDisconnect(socket));
+  socket.on('submit_word', (word) => submitWord(socket, word));
+  socket.on('submit_guess', (word) => submitGuess(socket, word));
+
+  // connect user
+  userConnect(socket);
 
   // socket.onAny((event) => {
   //   console.log(`[${event}]`.gray.bold, 'from'.gray, socket.username.gray.italic);
   // });
 
-  if (users.length === numPlayers) {
-    if (gameCreated()) {
-      const game = getGame();
-      sendGameState(socket, game);
-      setupListeners(game, socket);
-    } else {
-      sendUsers(socket);
-      game = initializeGame(users);
-      io.emit('word_picking');
-    }
-  } else {
-    sendUsers(socket);
-  }  
 });
 
 /**
@@ -79,34 +81,47 @@ io.on('connection', (socket: JottoSocket) => {
  * @param socket The connected socket
  * @returns All the current user sessions
  */
-function userConnect(socket: JottoSocket): Session[] {
+function userConnect(socket: JottoSocket) {
   console.group('user connected'.green);
   console.log('username: ', socket.username);
   console.log('sessionId:', socket.sessionId);
   console.log('userId:   ', socket.userId);
   console.groupEnd();
 
-  // save the session
-  sessionStore.saveSession(socket.sessionId, {
+  const session: Session = {
     userId: socket.userId,
     username: socket.username,
     connected: true,
-  });
+  };
+
+  // save the session
+  sessionStore.saveSession(socket.sessionId, session);
 
   // send session details to connected user
   socket.emit('session', {
     sessionId: socket.sessionId,
     userId: socket.userId
   });
-  
-  // broadcast to all other that a user connected
-  socket.broadcast.emit('user_connect', {
-    userId: socket.userId,
-    username: socket.username,
-    connected: true
-  });
 
-  return sessionStore.allSessions();
+  // create player and add to room
+  room.addPlayer(new Player(session));
+  
+  // broadcast to all others that a user connected
+  socket.broadcast.emit('user_connect', session);
+
+  // send all connected users including the user just connected
+  // to just the connected user
+  // this allows the connected user to see any users that 
+  // connected before 
+  sendUsers(socket);
+
+  // publish event
+  eventBus.publish(UserEvents.userConnected(session));
+
+  if (room.isFull) {
+    game = new Game(room.players);
+    io.emit('word_picking');
+  }
 }
 
 function sendUsers(socket: JottoSocket) {
@@ -119,13 +134,6 @@ function sendUsers(socket: JottoSocket) {
 
     // send all connected users to the connected user
     socket.emit('users', users);
-}
-
-function sendGameState(socket: JottoSocket, game: Game) {
-  const state = game.restoreState(socket.userId,
-    sessionStore.allSessions());
-
-  socket.emit('restore_state', state);
 }
 
 /**
@@ -144,54 +152,18 @@ async function userDisconnect(socket: JottoSocket) {
 
     // notify other users
     socket.broadcast.emit('user_disconnect', socket.userId);
-    // update session status
-    sessionStore.saveSession(socket.sessionId, {
+
+    const session: Session = {
       userId: socket.userId,
       username: socket.username,
       connected: false,
-    });
-  }
-}
+    }
 
-/**
- * Initialize and start the game
- * @param socket The socket
- * @param users All the user sessions
- */
-function initializeGame(users: Session[]): Game {
-  const game = new Game(users);
+    // update session status
+    sessionStore.saveSession(socket.sessionId, session);
 
-  // called when all players set their words
-  game.onGameStart(() => {
-    io.emit('game_start', {
-      nextPlayer: game.getCurPlayer()?.userId,
-      playerOrder: game.getPlayerOrder()
-    })
-  });
-
-  setupListeners(game);
-
-  return game;
-}
-
-function setupListeners(game: Game, socket?: JottoSocket) {
-  const forSocket = (socket: JottoSocket) => {
-    socket.on('submit_word', submitWord.bind(this, socket, game));
-    socket.on('submit_guess', submitGuess.bind(this, socket, game));
-  }
-
-  if (socket) {
-    forSocket(socket);
-    return;
-  }
-
-  // add listeners to each socket
-  // these listeners depend on the game
-  for (let socket of io.of('/').sockets.values()) {
-    // let jottoSocket = socket as JottoSocket;
-    // socket.on('submit_word', submitWord.bind(this, jottoSocket, game));
-    // socket.on('submit_guess', submitGuess.bind(this, jottoSocket, game));
-    forSocket(socket as JottoSocket);
+    // publish event
+    eventBus.publish(UserEvents.userDisconnected(session))
   }
 }
 
@@ -200,42 +172,51 @@ function setupListeners(game: Game, socket?: JottoSocket) {
  * @param socket The socket of the submitted word
  * @param word The word submitted
  */
-// @ts-ignore
-function submitWord(socket: JottoSocket, game: Game, word: string) {
+function submitWord(socket: JottoSocket, word: string) {
+  const player = game!.getPlayer(socket.userId)
+
   console.group('word submitted'.magenta);
-  console.log('user: ', socket.username);
+  console.log('user: ', player.username);
   console.log('word: ', word.bold);
   console.groupEnd();
 
-  game.setPlayerWord(socket.userId, word);
+  player.setWord(word)
   socket.broadcast.emit('user_ready', socket.userId);
 }
 
-function submitGuess(socket: JottoSocket, game: Game, word: string) {
-  const result = game.playerGuess(socket.userId, word);
+/**
+ * Handle a submit guess
+ * @param socket The socket that submitted the guess
+ * @param word The guess that was made
+ */
+function submitGuess(socket: JottoSocket, word: string) {
+  const player = game!.getPlayer(socket.userId)
+
+  const { common, won } = player.addGuess(word)
 
   console.group('user guessed'.blue);
-  console.log('from:  ', result.player.username);
-  console.log('to:    ', result.player.opponent.username);
+  console.log('from:  ', player.username);
+  console.log('to:    ', player.opponent.username);
   console.log('word:  ', word);
-  console.log('common:', result.common);
-  console.log('won:   ', result.won);
-  console.groupEnd();
-
-  console.group('game history'.dim);
-  console.log('history', game.getGuessHistory());
+  console.log('common:', common);
+  console.log('won:   ', won);
   console.groupEnd();
 
   io.emit('turn', {
     word,
-    common: result.common,
-    nextPlayer: game.getCurPlayer()?.userId,
-    gameOver: result.gameOver,
-    won: result.won
+    common,
+    won
   });
+}
 
-  if (result.gameOver) {
-    io.emit('end_game_summary', game.endSummary());
+function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
+  switch(event.game.state) {
+    case GameState.started:
+      io.emit('game_start')
+      break
+    case GameState.gameOver:
+      io.emit('end_game_summary', game!.summary())
+      break
   }
 }
 

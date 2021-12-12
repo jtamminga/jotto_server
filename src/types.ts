@@ -1,8 +1,10 @@
 import { Socket } from "socket.io";
+import Player from "./player";
 
-export interface Guess {
-  word: string;
-  common: number;
+export interface JottoSocket extends Socket {
+  sessionId: string;
+  userId: string;
+  username: string;
 }
 
 export interface Session {
@@ -18,15 +20,33 @@ export interface SessionStore {
   hasSession(id: string): boolean;
 }
 
-export interface JottoSocket extends Socket {
-  sessionId: string;
-  userId: string;
-  username: string;
+export interface Guess {
+  word: string;
+  common: number;
 }
 
 export interface UserState extends Session {
   won: boolean;
   ready: boolean;
+}
+
+export interface GuessResult {
+  common: number;
+  won: boolean;
+}
+
+export interface GameGuessResult extends GuessResult {
+  player: Player;
+  gameOver: boolean;
+  place: number | undefined;
+}
+
+export interface EndGameSummary {
+  userId: string;
+  username: string;
+  place: number;
+  word: string;
+  numGuesses: number;
 }
 
 export interface History {
@@ -47,8 +67,10 @@ export interface GameStateRestore {
 }
 
 export enum GameState {
-  PICK_USERNAME, // make sure indexes match
-  PICKING_WORD,
-  STARTED,
-  GAME_OVER
+  pickUsername, // make sure indexes match
+  pickWords,
+  started,
+  gameOver
 }
+
+export class IllegalStateError extends Error { }

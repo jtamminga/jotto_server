@@ -1,223 +1,111 @@
-import Player from './player';
-import { GameState, GameStateRestore, Session, History } from './types';
-import { duplicates, moveOver, shuffle } from './utils';
+import Player from './player'
+import { shuffle } from './utils'
+import { GameEvents, isPlayerEvent, PlayerEvents } from './events'
+import { GameState, EndGameSummary } from './types'
+import { EventBus } from './eventBus'
+import { autoInjectable } from 'tsyringe'
+import { filter } from 'rxjs'
 
+@autoInjectable()
 class Game {
-  private players: Player[];
-  private curPlayer: Player | undefined; // no player if game is over
-  private state: GameState;
-  private numWinners: number;
 
-  private onGameStartCallback: (() => void) | undefined = undefined;
+  private _players: Player[]
+  private _state: GameState = GameState.pickWords
+  private _numWinners: number = 0
 
-  constructor(users: Session[]) {
-    this.players = this.createPlayers(users);
-    this.curPlayer = this.players[0];
-    this.state = GameState.PICKING_WORD;
-    this.numWinners = 0;
-  }
+  constructor(players: ReadonlyArray<Player>, private _bus?: EventBus) {
 
-  private createPlayers(users: Session[]): Player[] {
-    // shuffle userIds
-    let userIds = users.map(u => u.userId);
-    shuffle(userIds);
+    // shuffle the players
+    this._players = shuffle(players)
 
-    // create player objects
-    let players: Player[] = [];
-    let prePlayer: Player | undefined = undefined;
-    for(let i = 0; i < userIds.length; i++) {
-      let session = users.find(u => u.userId === userIds[i]);
-
-      if (!session) {
-        throw new Error('No session found');
-      }
-
-      let player = new Player(userIds[i], session.username);
-      player.setOpponent(prePlayer);
-      players.push(player);
-      prePlayer = player;
+    // then assign players to their opponent
+    for (let i = 0; i < players.length; i++) {
+      this._players[i].setOpponent(
+        this._players[i + 1] ?? this._players[0])
     }
-    players[0].setOpponent(prePlayer);
-    return players;
+
+    _bus?.events$
+      .pipe(filter(isPlayerEvent))
+      .subscribe(this.onPlayerEvent)
   }
 
-  private getPlayer(userId: string): Player {
-    const player = this.players.find(p => p.userId === userId);
+
+  //
+  // getters & setters
+  // =================
+
+
+  public get players(): Player[] {
+    return this._players
+  }
+
+  public get state(): GameState {
+    return this._state
+  }
+
+
+  //
+  // public functions
+  // ================
+
+
+  public getPlayer(userId: string): Player {
+    const player = this._players
+      .find(p => p.userId === userId)
 
     if (!player) {
-      throw new Error('Player does not exist');
+      throw new Error('Player does not exist')
     }
 
-    return player;
+    return player
   }
 
-  private getUsers(sessions: Session[]) {
-    return sessions
-      .map(session => {
-        const player = this.getPlayer(session.userId);
-
-        return {
-          ...session,
-          won: player.won,
-          ready: player.ready
-        }
-      });
-  }
-
-  getGuessHistory(): History[] {
-    const hasWon = (player: Player, round: number) =>
-      round >= player.guesses.length;
-
-    const numRounds = this.players.reduce((max, player) =>
-      max > player.guesses.length ? max : player.guesses.length, 0);
-
-    let history: History[] = [];
-
-    for (let round = 0; round < numRounds; round++) {
-      for (let cur of this.players) {
-        if (hasWon(cur, round)) continue;
-
-        const from = cur.userId;
-        const to = cur.opponent.userId;
-        const guess = cur.guesses[round];
-
-        history.push({ from, to, ...guess });
-      }
-    }
-
-    return history;
-  }
-
-  getPlayers(): Player[] {
-    return this.players;
-  }
-
-  getPlayerOrder(): string[] {
-    return this.players.map(player => player.userId);
-  }
-
-  getCurPlayer(): Player | undefined {
-    return this.curPlayer;
-  }
-
-  getNextPlayer(): Player | undefined {
-    if (!this.curPlayer) {
-      return undefined;
-    }
-
-    let player = this.curPlayer;
-    for (let i = 0; i < this.players.length; i++) {
-      player = player.opponent;
-      if (!player.won) return player;
-    }
-
-    return undefined;
-  }
-
-  getGameState(): GameState {
-    return this.state;
-  }
-
-  setPlayerWord(userId: string, word: string): void {
-    if (this.state == GameState.PICKING_WORD) {
-      if (word.length == 5 && duplicates([...word]).length == 0) {
-        this.getPlayer(userId).setWord(word);
-        if (this.players.every(p => p.hasWord())) {
-          this.state = GameState.STARTED;
-          if (this.onGameStartCallback) this.onGameStartCallback();
-        }
-      } else {
-        throw new Error('Word is not valid');
-      }
-    } else {
-      throw new Error('Invalid game state');
-    }
-  }
-
-  playerGuess(userId: string, guess: string): GuessResult {
-    const player = this.getPlayer(userId);
-    const common = player.addGuess(guess);
-
-    // if the player won, record which place they are in
-    if (player.won) {
-      player.place = ++this.numWinners;
-    }
-
-    // set next player
-    this.curPlayer = this.getNextPlayer();
-
-    // check if the game is over
-    if (this.curPlayer == null) {
-      this.state = GameState.GAME_OVER;
-    }
-
-    return {
-      player,
-      common,
-      won: player.won,
-      place: player.place,
-      gameOver: this.state == GameState.GAME_OVER
-    };
-  }
-
-  // need sessions for connected state
-  // maybe sink that with players then we don't need this
-  restoreState(userId: string, sessions: Session[]): GameStateRestore {
-    const users = this.getUsers(sessions);
-    const player = this.getPlayer(userId);
-    let playerOrder = this.getPlayerOrder();
-
-    // adjust the first player of the player order
-    // because the frontend uses the first userId for the "starting player"
-    if (this.curPlayer) {
-      let index = playerOrder.indexOf(this.curPlayer.userId);
-      let offset = playerOrder.length - index;
-      playerOrder = moveOver(playerOrder, offset);
-    }
-
-    return {
-      state: this.state,
-      users,
-      playerOrder,
-      word: player.hasWord() ? player.word : '',
-      currentTurn: this.curPlayer?.userId,
-      // guesses: player.guesses
-      history: this.getGuessHistory()
-    };
-  }
-
-  endSummary(): EndGameSummary[] {
-    return [...this.players]
-      .sort((a, b) => a.place - b.place)
+  public summary(): EndGameSummary[] {
+    return [...this._players]
+      .sort((a, b) => a.placement - b.placement)
       .map(p => ({
         userId: p.userId,
         username: p.username,
-        place: p.place,
+        place: p.placement,
         word: p.word,
         numGuesses: p.guesses.length
-      }));
+      }))
   }
 
-  // callbacks
-  onGameStart(callback: () => void) {
-    this.onGameStartCallback = callback;
+
+  //
+  // private functions
+  // =================
+
+
+  private onPlayerEvent(event: PlayerEvents.PlayerEvent) {
+    switch(event.type) {
+      case 'set_word':
+        this.onSetWord()
+        break
+      case 'submit_guess':
+        this.onSubmitGuess(event.player)
+        break
+    }
   }
-}
 
-interface GuessResult {
-  player: Player;
-  common: number;
-  won: boolean;
-  gameOver: boolean;
-  place: number;
-}
+  private onSetWord() {
+    if (this._players.every(p => p.hasWord)) {
+      this._state = GameState.started;
+      this._bus?.publish(GameEvents.stateChange(this));
+    }
+  }
 
-interface EndGameSummary {
-  userId: string;
-  username: string;
-  place: number;
-  word: string;
-  numGuesses: number;
+  private onSubmitGuess(player: Player) {
+    if (player.won) {
+      player.setPlacement(++this._numWinners)
+    }
+    
+    if (this._players.every(p => p.won)) {
+      this._state = GameState.gameOver
+      this._bus?.publish(GameEvents.stateChange(this))
+    }
+  }
 }
 
 export default Game;

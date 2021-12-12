@@ -1,95 +1,125 @@
-import { Guess } from './types';
-import { numIntersect } from './utils';
+import { autoInjectable } from 'tsyringe'
+import { EventBus } from './eventBus'
+import { PlayerEvents } from './events'
+import { Guess, GuessResult, IllegalStateError, Session } from './types'
+import { duplicates, numIntersect } from './utils'
 
-class Player {
-  private _userId: string;
-  private _username: string;
-  private _word: string | undefined;
-  private _guesses: Guess[];
-  private _won: boolean;
-  private _opponent: Player | undefined;
+@autoInjectable()
+export default class Player {
+  
+  // player info
+  private _userId: string
+  private _username: string
 
-  place: number;
+  // game info
+  private _word: string | undefined
+  private _guesses: Guess[]
+  private _opponent: Player | undefined
+
+  // state
+  private _won: boolean
+  private _placement: number | undefined
+
+  constructor({ userId, username }: Session, private _bus?: EventBus) {
+    this._userId = userId
+    this._username = username
+
+    this._word = undefined
+    this._guesses = []
+    this._opponent = undefined
+
+    this._won = false
+    this._placement = undefined
+  }
+
+
+  //
+  // getters & setters
+  // =================
+
 
   public get userId(): string {
-    return this._userId;
+    return this._userId
   }
 
   public get username(): string {
-    return this._username;
+    return this._username
   }
 
   public get word(): string {
     if (!this._word) {
-      throw new Error('Opponent does not have a word set');
+      throw new Error('Player does not have a word set')
     }
 
-    return this._word;
+    return this._word
+  }
+
+  public get hasWord(): boolean {
+    return this._word !== undefined
   }
   
   public get won(): boolean {
-    return this._won;
-  }
-  
-  public get ready(): boolean {
-    return this.hasWord();
+    return this._won
   }
 
   public get opponent(): Player {
     if (!this._opponent) {
-      throw new Error('Player does not have an opponent');
+      throw new Error('Player does not have an opponent')
     }
 
-    return this._opponent;
+    return this._opponent
   }
   
   public get guesses() : Guess[] {
     return this._guesses;
   }
-  
-  constructor(userId: string, username: string) {
-    this._userId = userId;
-    this._username = username;
-    this._word = undefined;
-    this._guesses = [];
-    this._won = false;
-    this._opponent = undefined;
 
-    this.place = 0;
-  }
-
-  setOpponent(opponent: Player | undefined) {
-    this._opponent = opponent;
-  }
-
-  addGuess(word: string): number {
-    if (!this._opponent) {
-      throw new Error('Player does not have an opponent');
+  public get placement(): number {
+    if (!this._placement) {
+      throw new IllegalStateError('Player did not win yet')
     }
 
-    if (!this._opponent._word) {
-      throw new Error('Opponent does not have a word set');
-    }
-
-    if (word === this._opponent._word) {
-      this._guesses.push({ word, common: 5 });
-      this._won = true;
-      return 5;
-    }
-
-    const common = numIntersect([...this._opponent._word], [...word]);
-    this._guesses.push({ word, common });    
-
-    return common;
+    return this._placement
   }
 
-  setWord(word: string) {
-    this._word = word;
+
+  //
+  // public functions
+  // ================
+
+
+  public addGuess(word: string): GuessResult {
+    if (word === this.opponent.word) {
+      this._guesses.push({ word, common: 5 })
+      this._won = true
+      return { common: 5, won: true }
+    }
+
+    const common = numIntersect([...this.opponent.word], [...word])
+    this._guesses.push({ word, common })
+    this._bus?.publish(PlayerEvents.submitGuess(this, word))
+
+    return { common, won: false }
+  }
+
+  public setWord(word: string) {
+    if (word.length !== 5 || duplicates([...word]).length !== 0) {
+      throw new Error('Word is not valid')
+    }
+    
+    this._word = word
+    this._bus?.publish(PlayerEvents.setWord(this, word))
   } 
 
-  hasWord(): boolean {
-    return this._word !== undefined;
+  public setOpponent(player: Player) {
+    this._opponent = player
+  }
+
+  public setPlacement(place: number) {
+    if (!this._won) {
+      throw new IllegalStateError('Can only be placed if won')
+    }
+
+    this._placement = place
   }
 }
-
-export default Player;
