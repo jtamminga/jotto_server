@@ -1,7 +1,7 @@
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { PlayerEvents } from './events'
-import { Guess, GuessResult, IllegalStateError, Session } from './types'
+import { Guess, GuessResult, GuessSubmission, Session } from './types'
 import { duplicates, numIntersect } from './utils'
 
 @autoInjectable()
@@ -18,7 +18,6 @@ export default class Player {
 
   // state
   private _won: boolean
-  private _placement: number | undefined
 
   constructor({ userId, username }: Session, private _bus?: EventBus) {
     this._userId = userId
@@ -29,7 +28,6 @@ export default class Player {
     this._opponent = undefined
 
     this._won = false
-    this._placement = undefined
   }
 
 
@@ -74,32 +72,27 @@ export default class Player {
     return this._guesses;
   }
 
-  public get placement(): number {
-    if (!this._placement) {
-      throw new IllegalStateError('Player did not win yet')
-    }
-
-    return this._placement
-  }
-
 
   //
   // public functions
   // ================
 
 
-  public addGuess(word: string): GuessResult {
+  public addGuess({ id, word }: GuessSubmission): GuessResult {
+    let result: GuessResult
+
     if (word === this.opponent.word) {
-      this._guesses.push({ word, common: 5 })
+      this._guesses.push({ id, word, common: 5 })
       this._won = true
-      return { common: 5, won: true }
+      result = { common: 5, won: true }
+    } else {
+      const common = numIntersect([...this.opponent.word], [...word])
+      this._guesses.push({ id, word, common })
+      result = { common, won: false }
     }
 
-    const common = numIntersect([...this.opponent.word], [...word])
-    this._guesses.push({ word, common })
     this._bus?.publish(PlayerEvents.submitGuess(this, word))
-
-    return { common, won: false }
+    return result
   }
 
   public setWord(word: string) {
@@ -113,13 +106,5 @@ export default class Player {
 
   public setOpponent(player: Player) {
     this._opponent = player
-  }
-
-  public setPlacement(place: number) {
-    if (!this._won) {
-      throw new IllegalStateError('Can only be placed if won')
-    }
-
-    this._placement = place
   }
 }

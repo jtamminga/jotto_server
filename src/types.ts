@@ -20,7 +20,13 @@ export interface SessionStore {
   hasSession(id: string): boolean;
 }
 
+export interface GuessSubmission {
+  id: string
+  word: string
+}
+
 export interface Guess {
+  id: string
   word: string;
   common: number;
 }
@@ -41,12 +47,19 @@ export interface GameGuessResult extends GuessResult {
   place: number | undefined;
 }
 
-export interface EndGameSummary {
+export interface GameConfig {
+  opponents: { id: string, opponentId: string }[]
+}
+
+export interface PlayerSummary {
   userId: string;
-  username: string;
   place: number;
   word: string;
   numGuesses: number;
+}
+
+export interface GameSummary {
+  playerSummaries: PlayerSummary[]
 }
 
 export interface History {

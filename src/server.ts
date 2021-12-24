@@ -3,10 +3,10 @@ import MemorySessionStore from './memorySessionStore';
 import { randomBytes } from 'crypto';
 import Game from './game';
 import { Socket, Server } from 'socket.io';
-import { JottoSocket, SessionStore, Session, UserState, GameState } from './types';
+import { JottoSocket, SessionStore, Session, UserState, GameState, GuessSubmission } from './types';
 import 'colors';
 import { filter } from 'rxjs';
-import { GameEvents, isGameEvent, UserEvents } from './events';
+import { GameEvents, UserEvents } from './events';
 import Room from './room';
 import Player from './player';
 import { container } from 'tsyringe';
@@ -31,7 +31,7 @@ const io = new Server({
     origin: "http://localhost:3000"
   }
 });
-isGameEvent
+
 // spin it up
 io.listen(3001);
 
@@ -65,7 +65,7 @@ io.on('connection', (socket: JottoSocket) => {
   // setup listeners on connected socket
   socket.on('disconnect', () => userDisconnect(socket));
   socket.on('submit_word', (word) => submitWord(socket, word));
-  socket.on('submit_guess', (word) => submitGuess(socket, word));
+  socket.on('submit_guess', (guess) => submitGuess(socket, guess));
 
   // connect user
   userConnect(socket);
@@ -189,33 +189,46 @@ function submitWord(socket: JottoSocket, word: string) {
  * @param socket The socket that submitted the guess
  * @param word The guess that was made
  */
-function submitGuess(socket: JottoSocket, word: string) {
+function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
   const player = game!.getPlayer(socket.userId)
 
-  const { common, won } = player.addGuess(word)
+  const { common, won } = player.addGuess(guess)
 
   console.group('user guessed'.blue);
   console.log('from:  ', player.username);
   console.log('to:    ', player.opponent.username);
-  console.log('word:  ', word);
+  console.log('word:  ', guess.word);
   console.log('common:', common);
   console.log('won:   ', won);
   console.groupEnd();
 
-  io.emit('turn', {
-    word,
+  io.emit('guess', {
+    ...guess,
     common,
-    won
+    won,
+    from: player.userId,
+    to: player.opponent.userId
   });
 }
 
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
   switch(event.game.state) {
     case GameState.started:
-      io.emit('game_start')
+      io.emit('game_start', event.game.config())
+
+      console.group('opponents'.cyan)
+      for(let player of event.game.players) {
+        console.log(
+          player.username.bold + ' against '.gray + player.opponent.username.bold 
+        )
+      }
+      console.groupEnd()
+
       break
     case GameState.gameOver:
-      io.emit('end_game_summary', game!.summary())
+      console.log('game over!'.rainbow)
+
+      io.emit('end_game_summary', event.game.summary())
       break
   }
 }

@@ -1,7 +1,7 @@
 import Player from './player'
 import { shuffle } from './utils'
 import { GameEvents, isPlayerEvent, PlayerEvents } from './events'
-import { GameState, EndGameSummary } from './types'
+import { GameState, GameConfig, GameSummary } from './types'
 import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
 import { filter } from 'rxjs'
@@ -11,7 +11,7 @@ class Game {
 
   private _players: Player[]
   private _state: GameState = GameState.pickWords
-  private _numWinners: number = 0
+  private _winners: Player[] = []
 
   constructor(players: ReadonlyArray<Player>, private _bus?: EventBus) {
 
@@ -26,7 +26,7 @@ class Game {
 
     _bus?.events$
       .pipe(filter(isPlayerEvent))
-      .subscribe(this.onPlayerEvent)
+      .subscribe(event => this.onPlayerEvent(event))
   }
 
 
@@ -60,16 +60,25 @@ class Game {
     return player
   }
 
-  public summary(): EndGameSummary[] {
-    return [...this._players]
-      .sort((a, b) => a.placement - b.placement)
-      .map(p => ({
+  public config(): GameConfig {
+    return {
+      opponents: this._players.map(player => ({
+        id: player.userId,
+        opponentId: player.opponent.userId
+      }))
+    }
+  }
+
+  public summary(): GameSummary {
+    const playerSummaries = this._winners
+      .map((p, i) => ({
         userId: p.userId,
-        username: p.username,
-        place: p.placement,
+        place: i + 1,
         word: p.word,
         numGuesses: p.guesses.length
       }))
+
+    return { playerSummaries }
   }
 
 
@@ -98,7 +107,7 @@ class Game {
 
   private onSubmitGuess(player: Player) {
     if (player.won) {
-      player.setPlacement(++this._numWinners)
+      this._winners.push(player)
     }
     
     if (this._players.every(p => p.won)) {
