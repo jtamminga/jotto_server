@@ -1,33 +1,21 @@
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { PlayerEvents } from './events'
-import { Guess, GuessResult, GuessSubmission, Session } from './types'
+import { Guess, GuessResult, GuessSubmission, JottoSocket } from './types'
+import User from './user'
 import { duplicates, numIntersect } from './utils'
 
 @autoInjectable()
-export default class Player {
-  
-  // player info
-  private _userId: string
-  private _username: string
+export default class Player extends User {
 
-  // game info
-  private _word: string | undefined
-  private _guesses: Guess[]
-  private _opponent: Player | undefined
+  private _word: string | undefined = undefined
+  private _guesses: Guess[] = []
+  private _opponent: Player | undefined = undefined
+  private _won: boolean = false
 
-  // state
-  private _won: boolean
 
-  constructor({ userId, username }: Session, private _bus?: EventBus) {
-    this._userId = userId
-    this._username = username
-
-    this._word = undefined
-    this._guesses = []
-    this._opponent = undefined
-
-    this._won = false
+  constructor(socket: JottoSocket, private _bus?: EventBus) {
+    super(socket)
   }
 
 
@@ -35,14 +23,6 @@ export default class Player {
   // getters & setters
   // =================
 
-
-  public get userId(): string {
-    return this._userId
-  }
-
-  public get username(): string {
-    return this._username
-  }
 
   public get word(): string {
     if (!this._word) {
@@ -106,5 +86,12 @@ export default class Player {
 
   public setOpponent(player: Player) {
     this._opponent = player
+  }
+
+  public reset() {
+    this._word = undefined
+    this._guesses = []
+    this._opponent = undefined
+    this._won = false
   }
 }

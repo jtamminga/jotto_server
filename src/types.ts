@@ -83,7 +83,12 @@ export enum GameState {
   pickUsername, // make sure indexes match
   pickWords,
   started,
-  gameOver
+  gameOver,
+  destroyed
 }
 
 export class IllegalStateError extends Error { }
+
+export interface Disposable {
+  dispose(): void
+}

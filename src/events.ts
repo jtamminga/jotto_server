@@ -107,6 +107,13 @@ export namespace PlayerEvents {
 
 // guards
 
+export function isUserEvent(event: Event): event is UserEvents.UserEvent {
+  return event.domain == 'server' && (
+    event.type == 'user_connected' ||
+    event.type == 'user_disconnected'
+  )
+}
+
 export function isGameEvent(event: Event): event is GameEvents.GameEvent {
   return event.domain == 'game'
 }

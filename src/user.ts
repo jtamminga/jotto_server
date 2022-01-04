@@ -1,23 +1,29 @@
-import { Session } from './types'
+import { JottoSocket, Session } from './types'
 
 class User implements Session {
+
   constructor(
-    private _userId: string,
-    private _username: string,
-    private _connected: boolean = true
+    private _socket: JottoSocket
   ) { }
 
+
+  //
+  // getters & setters
+  // =================
+
+
   public get userId(): string {
-    return this._userId
+    return this._socket.userId
   }
 
   public get username(): string {
-    return this._username
+    return this._socket.username
   }
 
   public get connected(): boolean {
-    return this._connected
+    return this._socket.connected
   }
+
 }
 
 export default User
