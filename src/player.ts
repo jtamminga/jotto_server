@@ -1,7 +1,7 @@
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { PlayerEvents } from './events'
-import { Guess, GuessResult, GuessSubmission, JottoSocket } from './types'
+import { Guess, GuessSubmission, PlayerState, Session } from './types'
 import User from './user'
 import { duplicates, numIntersect } from './utils'
 
@@ -13,9 +13,8 @@ export default class Player extends User {
   private _opponent: Player | undefined = undefined
   private _won: boolean = false
 
-
-  constructor(socket: JottoSocket, private _bus?: EventBus) {
-    super(socket)
+  constructor(session: Session, private _bus?: EventBus) {
+    super(session)
   }
 
 
@@ -58,21 +57,22 @@ export default class Player extends User {
   // ================
 
 
-  public addGuess({ id, word }: GuessSubmission): GuessResult {
-    let result: GuessResult
+  public addGuess({ id, word }: GuessSubmission): Guess {
+    const date = Date.now()
+    let guess: Guess
 
     if (word === this.opponent.word) {
-      this._guesses.push({ id, word, common: 5 })
       this._won = true
-      result = { common: 5, won: true }
+      guess = { id, word, date, common: 5, won: true }
+      this._guesses.push(guess)
     } else {
       const common = numIntersect([...this.opponent.word], [...word])
-      this._guesses.push({ id, word, common })
-      result = { common, won: false }
+      guess = { id, word, date, common, won: false }
+      this._guesses.push(guess)
     }
 
-    this._bus?.publish(PlayerEvents.submitGuess(this, word))
-    return result
+    this._bus?.publish(PlayerEvents.submitGuess(this, guess))
+    return guess
   }
 
   public setWord(word: string) {
@@ -81,7 +81,7 @@ export default class Player extends User {
     }
     
     this._word = word
-    this._bus?.publish(PlayerEvents.setWord(this, word))
+    this._bus?.publish(PlayerEvents.setWord(this))
   } 
 
   public setOpponent(player: Player) {
@@ -93,5 +93,13 @@ export default class Player extends User {
     this._guesses = []
     this._opponent = undefined
     this._won = false
+  }
+
+  public asPlayerState(): PlayerState {
+    return {
+      ...this.asSession(),
+      ready: this.hasWord,
+      won: this._won
+    }
   }
 }

@@ -1,5 +1,4 @@
 import { Socket } from "socket.io";
-import Player from "./player";
 
 export interface JottoSocket extends Socket {
   sessionId: string;
@@ -28,23 +27,22 @@ export interface GuessSubmission {
 export interface Guess {
   id: string
   word: string;
+  date: number;
   common: number;
+  won: boolean;
 }
 
-export interface UserState extends Session {
+export type PlayerLobbyState =
+  | 'in_room'
+  | 'picking_word'
+  | 'picked_word'
+  | 'playing'
+  | 'game_over'
+
+// the collection of player states
+export interface PlayerState extends Session {
   won: boolean;
   ready: boolean;
-}
-
-export interface GuessResult {
-  common: number;
-  won: boolean;
-}
-
-export interface GameGuessResult extends GuessResult {
-  player: Player;
-  gameOver: boolean;
-  place: number | undefined;
 }
 
 export interface GameConfig {
@@ -62,27 +60,23 @@ export interface GameSummary {
   playerSummaries: PlayerSummary[]
 }
 
-export interface History {
+export interface History extends Guess {
   from: string;
   to: string;
-  word: string;
-  common: number;
 }
 
-export interface GameStateRestore {
-  state: GameState,
-  users: UserState[];
-  playerOrder: string[];
-  word?: string;
-  currentTurn?: string;
-  // guesses: Guess[];
-  history: History[];
+export interface UserRestore {
+  userId: string
+  state: PlayerLobbyState
+  users: PlayerState[]
+  word?: string
+  gameSummary?: GameSummary,
+  history?: History[]
 }
 
 export enum GameState {
-  pickUsername, // make sure indexes match
-  pickWords,
-  started,
+  pickingWords,
+  playing,
   gameOver,
   destroyed
 }

@@ -1,7 +1,7 @@
 import Player from './player'
 import { shuffle } from './utils'
 import { GameEvents, isPlayerEvent, PlayerEvents } from './events'
-import { GameState, GameConfig, GameSummary, IllegalStateError } from './types'
+import { GameState, GameConfig, GameSummary, IllegalStateError, History } from './types'
 import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
@@ -10,7 +10,7 @@ import Players from './players'
 @autoInjectable()
 class Game extends Players {
 
-  private _state: GameState = GameState.pickWords
+  private _state: GameState = GameState.pickingWords
   private _winners: Player[] = []
   private _subscription: Subscription
 
@@ -45,6 +45,17 @@ class Game extends Players {
     return this._state
   }
 
+  public get guesses(): History[] {
+    return this._players
+      .reduce<History[]>((guesses, player) =>
+          guesses.concat(player.guesses.map(guess => ({
+            ...guess,
+            from: player.userId,
+            to: player.opponent.userId
+          }))), [])
+      .sort(g => g.date)
+  }
+
 
   //
   // public functions
@@ -72,22 +83,13 @@ class Game extends Players {
     return { playerSummaries }
   }
 
-  public leave(userId: string): Player {
-    const index = this._players.findIndex(p => p.userId === userId)
-    const player = this._players[index]
-
-    if (index === -1) {
-      throw new Error('Player not found')
-    }
-
-    this._players.splice(index, 1)
+  public leave(userId: string): void {
+    this.removePlayer(userId)
 
     if (this._players.length === 0) {
       this._state = GameState.destroyed
       this._bus?.publish(GameEvents.stateChange(this))
     }
-
-    return player
   }
 
   public dispose() {
@@ -113,7 +115,7 @@ class Game extends Players {
 
   private onSetWord() {
     if (this._players.every(p => p.hasWord)) {
-      this._state = GameState.started;
+      this._state = GameState.playing;
       this._bus?.publish(GameEvents.stateChange(this));
     }
   }

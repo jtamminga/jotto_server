@@ -4,15 +4,31 @@ import { IllegalStateError } from './types'
 
 export default class Room extends Players {
 
-  private _isOpen: Boolean = true
+  private _isOpen: boolean = true
 
   constructor(private numPlayers: number | undefined = undefined) {
     super()
   }
 
+
+  //
+  // getters & setters
+  // =================
+
+
+  public get isOpen(): boolean {
+    return this._isOpen
+  }
+
   public get isFull(): boolean {
     return this._players.length == this.numPlayers
   }
+
+
+  //
+  // public functions
+  // ================
+
 
   public addPlayer(player: Player) {
     if (!this._isOpen) {
