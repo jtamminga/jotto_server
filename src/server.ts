@@ -120,6 +120,7 @@ function userConnect(socket: JottoSocket) {
   eventBus.publish(UserEvents.userConnected(socket.userId, isReconnect))
 
   if (isReconnect) {
+    // if reconnected user then send restore data
     socket.emit('restore', lobby.userRestore(player.userId))
   } else {
     // send all connected users including the user just connected
@@ -134,24 +135,20 @@ function userConnect(socket: JottoSocket) {
  * Handle a user disconnected
  * @param socket The socket that disconnected
  */
- async function userDisconnect(socket: JottoSocket, reason: string) {
-  const matchingSockets = await io.in(socket.userId).allSockets();
-  const isDisconnected = matchingSockets.size === 0;
+function userDisconnect(socket: JottoSocket, reason: string) {
   const intended = reason === 'client namespace disconnect'
 
-  if (isDisconnected) {
-    console.group('user disconnected'.red);
-    console.log('username: ', socket.username);
-    console.log('sessionId:', socket.sessionId);
-    console.log('userId:   ', socket.userId);
-    console.log('intended: ', intended);
-    console.groupEnd();
+  console.group('user disconnected'.red);
+  console.log('username: ', socket.username);
+  console.log('sessionId:', socket.sessionId);
+  console.log('userId:   ', socket.userId);
+  console.log('intended: ', intended);
+  console.groupEnd();
 
-    // notify other users
-    socket.broadcast.emit('user_disconnect', socket.userId);
+  // notify other users
+  socket.broadcast.emit('user_disconnect', socket.userId);
 
-    eventBus.publish(UserEvents.userDisconnected(socket.userId, intended))
-  }
+  eventBus.publish(UserEvents.userDisconnected(socket.userId, intended))
 }
 
 /**

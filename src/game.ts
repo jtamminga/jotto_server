@@ -114,6 +114,10 @@ class Game extends Players {
   }
 
   private onSetWord() {
+    if (this._state !== GameState.pickingWords) {
+      throw new IllegalStateError(`Cannot set word in ${this._state} state`)
+    }
+
     if (this._players.every(p => p.hasWord)) {
       this._state = GameState.playing;
       this._bus?.publish(GameEvents.stateChange(this));
@@ -121,6 +125,10 @@ class Game extends Players {
   }
 
   private onSubmitGuess(player: Player) {
+    if (this._state !== GameState.playing) {
+      throw new IllegalStateError(`Cannot guess in ${this._state} state`)
+    }
+
     if (player.won) {
       this._winners.push(player)
     }

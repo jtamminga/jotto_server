@@ -70,6 +70,7 @@ export interface UserRestore {
   state: PlayerLobbyState
   users: PlayerState[]
   word?: string
+  config?: GameConfig
   gameSummary?: GameSummary,
   history?: History[]
 }

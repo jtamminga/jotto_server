@@ -6,7 +6,7 @@ import Game from './game'
 import Player from './player'
 import Players from './players'
 import Room from './room'
-import { Disposable, GameConfig, GameState, GameSummary, IllegalStateError, PlayerLobbyState, UserRestore } from './types'
+import { Disposable, GameConfig, GameState, GameSummary, IllegalStateError, PlayerLobbyState, UserRestore, History } from './types'
 
 export type LobbyState =
   | 'inroom'
@@ -81,15 +81,32 @@ class Lobby extends Players implements Disposable {
   }
 
   public userRestore(userId: string): UserRestore {
-    const userLobbyState = this.userLobbyState(userId)
+    const { player, state } = this.playerLobbyState(userId)
     const users = this.players.map(p => p.asPlayerState())
-    let history = this._game?.guesses
+
+    let word: string | undefined
+    let gameSummary: GameSummary | undefined
+    let config: GameConfig | undefined
+    let history: History[] | undefined
+
+    switch (state) {
+      case 'game_over':
+        gameSummary = this._game!.summary()
+      case 'playing':
+        config = this._game!.config()
+        history = this._game!.guesses
+      case 'picked_word':
+        word = player.word
+    }
 
     return {
-      ...userLobbyState,
       userId,
       users,
-      history
+      state,
+      history,
+      word,
+      config,
+      gameSummary
     }
   }
 
@@ -146,43 +163,44 @@ class Lobby extends Players implements Disposable {
 
     if (intended) {
       this.removePlayer(userId)
+
+      // also remove player from the game if there is an instance
+      // don't need to worry about removing from the room because
+      // it just gets clearned when closed anyways
+      if (this._game) {
+        this._game.leave(userId)
+      }
     }
   }
 
-  private userLobbyState(userId: string): PlayerStateInfo {
+  /**
+   * Determine the state of the player in the lobby
+   * @param userId The user to get the state for
+   * @returns The player and state of player in the lobby
+   */
+  private playerLobbyState(userId: string): { player: Player, state: PlayerLobbyState} {
+    // check if player is in room
     if (this._room.isOpen) {
       const player = this._room.findPlayer(userId)
       if (player) {
-        return { state: 'in_room' }
+        return { player, state: 'in_room' }
       }
     }
 
+    // check if player is in the game
     if (this._game) {
       const player = this._game.findPlayer(userId)
       if (player) {
-        let state: PlayerLobbyState
-        let word: string | undefined
-        let gameSummary: GameSummary | undefined
-        let config: GameConfig | undefined
-
-        if (player.hasWord) {
-          state = 'picked_word'
-          word = player.word
-        } else {
-          state = 'picking_word'
-        }
+        let state: PlayerLobbyState =
+          player.hasWord ? 'picked_word' : 'picking_word'
 
         if (this._game.state === GameState.playing) {
           state = 'playing'
-          config = this._game.config()
         } else if (this._game.state === GameState.gameOver) {
           state = 'game_over'
-          config = this._game.config()
-          gameSummary = this._game.summary()
         }
 
-
-        return { state, word, config, gameSummary }
+        return { player, state }
       }
     }
 
@@ -191,10 +209,3 @@ class Lobby extends Players implements Disposable {
 }
 
 export default Lobby
-
-type PlayerStateInfo = {
-  state: PlayerLobbyState
-  word?: string
-  config?: GameConfig
-  gameSummary?: GameSummary
-}
