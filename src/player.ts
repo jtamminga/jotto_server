@@ -1,9 +1,9 @@
+import { Session, duplicates, numIntersect } from 'jotto_core'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { PlayerEvents } from './events'
-import { Guess, GuessSubmission, PlayerState, Session } from './types'
+import { Guess, GuessSubmission, PlayerState } from './types'
 import User from './user'
-import { duplicates, numIntersect } from './utils'
 
 @autoInjectable()
 export default class Player extends User {

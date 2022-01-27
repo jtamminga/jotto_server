@@ -1,16 +1,8 @@
-import { Socket } from "socket.io";
+import { Socket } from 'socket.io'
+import { ClientToServerEvents, ServerToClientEvents, SocketData, Session } from 'jotto_core'
+import { DefaultEventsMap } from 'socket.io/dist/typed-events'
 
-export interface JottoSocket extends Socket {
-  sessionId: string;
-  userId: string;
-  username: string;
-}
-
-export interface Session {
-  userId: string;
-  username: string;
-  connected: boolean;
-}
+export type JottoSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
 
 export interface SessionStore {
   findSession(id: string): Session | undefined;
@@ -68,7 +60,7 @@ export interface History extends Guess {
 export interface UserRestore {
   userId: string
   state: PlayerLobbyState
-  users: PlayerState[]
+  users: Session[]
   word?: string
   config?: GameConfig
   gameSummary?: GameSummary,

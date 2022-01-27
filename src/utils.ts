@@ -1,3 +1,8 @@
+import { Session } from 'jotto_core';
+import Observer from './observer';
+import Player from './player'
+import User from './user'
+
 /**
  * Shuffle array in place.
  * Uses Fisher-Yates shuffle algorithm.
@@ -13,49 +18,6 @@ export function shuffle<T>(a: ReadonlyArray<T>): T[] {
 };
 
 /**
- * Get the union of set A and B
- * @param a Set A
- * @param b Set B
- */
- export function union<T>(a: T[], b: T[]): T[] {
-  let x = new Set([...a, ...b]);
-  return Array.from(x.values());
-}
-
-/**
- * Get the size of set X where X = A ∩ B
- * @param a Set A
- * @param b Set B
- */
- export function numIntersect<T>(a: T[], b: T[]): number {
-  let n = 0;
-  for (let i = 0; i < a.length; i++) {
-      n += b.includes(a[i]) ? 1 : 0;
-  }
-
-  return n;
-}
-
-/**
- * Check an array for duplicates
- * @param items The items to check for duplicates
- */
- export function duplicates<T>(items: T[]): T[] {
-  const hash = new Map<T, number>();
-
-  for (let item of items) {
-    hash.set(item, (hash.get(item) ?? 0) + 1);
-  }
-
-  let dups: T[] = [];
-  hash.forEach((num, item) => {
-    if (num > 1) dups.push(item);
-  });
-
-  return dups;
-}
-
-/**
  * Move items over a certain number of indexes
  * @param items The items to move over
  * @param offset The amount to move the items over by
@@ -68,4 +30,20 @@ export function moveOver<T>(items: T[], offset = 1): T[] {
   }
 
   return arr;
+}
+
+export function isPlayer(user: User): user is Player {
+  return user.type === 'player'
+}
+
+export function createUser(user: Session): User {
+  if (user.type === 'player') {
+    return new Player(user)
+  }
+
+  if (user.type === 'observer') {
+    return new Observer(user)
+  }
+
+  throw new Error('Invalid user type')
 }

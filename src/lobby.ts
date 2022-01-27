@@ -4,16 +4,18 @@ import { EventBus } from './eventBus'
 import { GameEvents, isGameStateChangeEvent, isUserEvent, UserEvents } from './events'
 import Game from './game'
 import Player from './player'
-import Players from './players'
 import Room from './room'
 import { Disposable, GameConfig, GameState, GameSummary, IllegalStateError, PlayerLobbyState, UserRestore, History } from './types'
+import User from './user'
+import Users from './users'
+import { isPlayer } from './utils'
 
 export type LobbyState =
   | 'inroom'
   | 'ingame'
 
 @autoInjectable()
-class Lobby extends Players implements Disposable {
+class Lobby extends Users implements Disposable {
 
   private _subscriptions: Subscription[] = []
   private _game: Game | undefined = undefined
@@ -62,9 +64,22 @@ class Lobby extends Players implements Disposable {
   // ================
 
 
-  public addPlayer(player: Player): void {
-    this._players.push(player)
-    this._room.addPlayer(player)
+  public addUser(user: User): void {
+    this.add(user)
+
+    if (user instanceof Player) {
+      this._room.addPlayer(user)
+    }
+  }
+
+  public getPlayer(userId: string): Player {
+    const user: User = this.get(userId)
+
+    if (user instanceof Player) {
+      return user
+    }
+
+    throw new Error('User is not a player')
   }
 
   public startGame() {
@@ -82,7 +97,9 @@ class Lobby extends Players implements Disposable {
 
   public userRestore(userId: string): UserRestore {
     const { player, state } = this.playerLobbyState(userId)
-    const users = this.players.map(p => p.asPlayerState())
+    const users = this.all
+      .filter(isPlayer)
+      .map(p => p.asPlayerState())
 
     let word: string | undefined
     let gameSummary: GameSummary | undefined
@@ -151,23 +168,21 @@ class Lobby extends Players implements Disposable {
 
 
   private userConnected(userId: string): void {
-    const player = this.getPlayer(userId)
-
-    player.connected = true
+    const user = this.get(userId)
+    user.connected = true
   }
 
   private userDisconnected(userId: string, intended: boolean): void {
-    const player = this.getPlayer(userId)
-
-    player.connected = false
+    const user = this.get(userId)
+    user.connected = false
 
     if (intended) {
-      this.removePlayer(userId)
+      this.remove(userId)
 
       // also remove player from the game if there is an instance
       // don't need to worry about removing from the room because
       // it just gets clearned when closed anyways
-      if (this._game) {
+      if (this._game && user instanceof Player) {
         this._game.leave(userId)
       }
     }

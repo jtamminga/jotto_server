@@ -2,14 +2,16 @@ import 'reflect-metadata'
 import 'colors';
 import MemorySessionStore from './memorySessionStore';
 import { randomBytes } from 'crypto';
-import { Socket, Server } from 'socket.io';
-import { JottoSocket, GameState, GuessSubmission, PlayerState } from './types';
+import { Server } from 'socket.io';
+import { GameState, GuessSubmission, JottoSocket, PlayerState } from './types';
 import { filter } from 'rxjs';
 import { GameEvents, UserEvents } from './events';
-import Player from './player';
 import { container } from 'tsyringe';
 import { EventBus } from './eventBus';
 import Lobby from './lobby';
+import { ClientToServerEvents, ServerToClientEvents, SocketData, Session } from 'jotto_core'
+import { DefaultEventsMap } from 'socket.io/dist/typed-events'
+import { createUser } from './utils';
 
 // event bus
 const eventBus = container.resolve(EventBus)
@@ -24,7 +26,7 @@ const randomId = () => randomBytes(8).toString('hex');
 const lobby = new Lobby()
 const sessionStore = new MemorySessionStore()
 
-const io = new Server({
+const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>({
   cors: {
     origin: "http://localhost:3000"
   }
@@ -35,16 +37,16 @@ io.listen(3001);
 console.log('server started'.cyan)
 
 // middleware
-io.use((socket: Socket, next) => {
+io.use((socket, next) => {
   const sessionId = socket.handshake.auth.sessionId;
-  const jottoSocket = socket as JottoSocket;
-
+  
   if (sessionId) {
     const session = sessionStore.findSession(sessionId);
     if (session) {
-      jottoSocket.sessionId = sessionId;
-      jottoSocket.userId = session.userId;
-      jottoSocket.username = session.username;
+      socket.data.sessionId = sessionId
+      socket.data.userId = session.userId
+      socket.data.username = session.username
+      socket.data.type = session.type
       return next();
     }
   }
@@ -53,20 +55,20 @@ io.use((socket: Socket, next) => {
   if (!username) {
     return next(new Error("invalid username"));
   }
-  jottoSocket.sessionId = randomId();
-  jottoSocket.userId = randomId();
-  jottoSocket.username = username;
+  socket.data.sessionId = randomId();
+  socket.data.userId = randomId();
+  socket.data.username = username;
+  socket.data.type = socket.handshake.auth.type
   next();
 });
 
-io.on('connection', (socket: JottoSocket) => {
-
+io.on('connection', (socket) => {
   // setup listeners on connected socket
   socket.on('disconnect', (reason) => userDisconnect(socket, reason));
-  socket.on('start_game', () => startGame());
-  socket.on('submit_word', (word) => submitWord(socket, word));
-  socket.on('submit_guess', (guess) => submitGuess(socket, guess));
-  socket.on('rejoin_room', () => rejoinRoom(socket));
+  socket.on('startGame', () => startGame());
+  socket.on('submitWord', (word) => submitWord(socket, word));
+  socket.on('submitGuess', (guess) => submitGuess(socket, guess));
+  socket.on('rejoinRoom', () => rejoinRoom(socket));
 
   // connect user
   userConnect(socket);
@@ -83,52 +85,66 @@ io.on('connection', (socket: JottoSocket) => {
  * @returns All the current user sessions
  */
 function userConnect(socket: JottoSocket) {
-  let player = lobby.findPlayer(socket.userId)
-  let isReconnect = !!player
+  let session = sessionStore.findSession(socket.data.sessionId!)
 
   console.group('user connected'.green);
-  console.log('username:  ', socket.username);
-  console.log('sessionId: ', socket.sessionId);
-  console.log('userId:    ', socket.userId);
-  console.log('reconnect: ', isReconnect);
+  console.log('username:  ', socket.data.username);
+  console.log('sessionId: ', socket.data.sessionId);
+  console.log('userId:    ', socket.data.userId);
+  console.log('type:      ', socket.data.type);
+  console.log('reconnect: ', !!session);
   console.groupEnd();
 
-  // need to create a new player
-  if (!player) {
-
-    // send session details to connected user
-    socket.emit('session', {
-      sessionId: socket.sessionId,
-      userId: socket.userId
-    });
-
-    player = new Player({
-      userId: socket.userId,
-      username: socket.username,
-      connected: true
-    })
-
-    sessionStore.saveSession(socket.sessionId, player.asSession())
-  
-    // add player to the lobby
-    lobby.addPlayer(player)
-  }
-  
-  // broadcast to all others that a user connected
-  socket.broadcast.emit('user_connect', player.asSession())
-
-  eventBus.publish(UserEvents.userConnected(socket.userId, isReconnect))
-
-  if (isReconnect) {
-    // if reconnected user then send restore data
-    socket.emit('restore', lobby.userRestore(player.userId))
+  if (session) {
+    userReconnect(socket, session)
   } else {
-    // send all connected users including the user just connected
-    // to just the connected user
-    // this allows the connected user to see any users that 
-    // connected before 
-    sendUsers(socket)
+    newUserConnect(socket)
   }
+}
+
+/**
+ * Handle a new user connection
+ * @param socket The socket that connected
+ */
+function newUserConnect(socket: JottoSocket) {
+  // send session details to connected user
+  socket.emit('session', {
+    sessionId: socket.data.sessionId!,
+    userId: socket.data.userId!
+  });
+
+  const session: Session = {
+    userId: socket.data.userId!,
+    username: socket.data.username!,
+    type: socket.data.type!,
+    connected: true
+  }
+
+  sessionStore.saveSession(socket.data.sessionId!, session)
+
+  lobby.addUser(createUser(session))
+
+  // broadcast to all others that a user connected
+  socket.broadcast.emit('userConnect', session)
+  
+  eventBus.publish(UserEvents.userConnected(session.userId, false))
+
+  // send all connected users including the user just connected
+  // to just the connected user
+  // this allows the connected user to see any users that 
+  // connected before 
+  sendUsers(socket)
+}
+
+/**
+ * Handle a reconnected user
+ * @param socket The socket that reconnected
+ * @param session The user's session
+ */
+function userReconnect(socket: JottoSocket, session: Session) {
+  socket.broadcast.emit('userConnect', session)
+  eventBus.publish(UserEvents.userConnected(session.userId, true))
+  socket.emit('restore', lobby.userRestore(session.userId))
 }
 
 /**
@@ -139,16 +155,16 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   const intended = reason === 'client namespace disconnect'
 
   console.group('user disconnected'.red);
-  console.log('username: ', socket.username);
-  console.log('sessionId:', socket.sessionId);
-  console.log('userId:   ', socket.userId);
+  console.log('username: ', socket.data.username);
+  console.log('sessionId:', socket.data.sessionId);
+  console.log('userId:   ', socket.data.userId);
   console.log('intended: ', intended);
   console.groupEnd();
 
   // notify other users
-  socket.broadcast.emit('user_disconnect', socket.userId);
+  socket.broadcast.emit('userDisconnect', socket.data.userId!);
 
-  eventBus.publish(UserEvents.userDisconnected(socket.userId, intended))
+  eventBus.publish(UserEvents.userDisconnected(socket.data.userId!, intended))
 }
 
 /**
@@ -156,11 +172,12 @@ function userDisconnect(socket: JottoSocket, reason: string) {
  * @param socket The connected socket
  */
 function sendUsers(socket: JottoSocket) {
-    const playerStates = lobby.connectedPlayers
-      .map(p => p.asPlayerState())
+  // TODO: send either playerstate or observer state
+  const playerStates = lobby.connected
+    .map(p => p.asSession())
 
-    // send all connected users to the connected user
-    socket.emit('users', playerStates)
+  // send all connected users to the connected user
+  socket.emit('users', playerStates)
 }
 
 /**
@@ -168,7 +185,7 @@ function sendUsers(socket: JottoSocket) {
  */
 function startGame() {
   lobby.startGame()
-  io.emit('word_picking')
+  io.emit('wordPicking')
 
   console.group('game started'.cyan)
   console.log('in game:'.bold)
@@ -183,7 +200,7 @@ function startGame() {
  * @param word The word submitted
  */
 function submitWord(socket: JottoSocket, word: string) {
-  const player = lobby.getPlayer(socket.userId)
+  const player = lobby.getPlayer(socket.data.userId!)
 
   console.group('word submitted'.magenta);
   console.log('user: ', player.username);
@@ -191,7 +208,7 @@ function submitWord(socket: JottoSocket, word: string) {
   console.groupEnd();
 
   player.setWord(word)
-  socket.broadcast.emit('user_ready', socket.userId);
+  socket.broadcast.emit('userReady', socket.data.userId!);
 }
 
 /**
@@ -200,7 +217,7 @@ function submitWord(socket: JottoSocket, word: string) {
  * @param word The guess that was made
  */
 function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
-  const player = lobby.getPlayer(socket.userId)
+  const player = lobby.getPlayer(socket.data.userId!)
 
   const { common, won } = player.addGuess(guess)
 
@@ -212,10 +229,11 @@ function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
   console.log('won:   ', won);
   console.groupEnd();
 
-  io.emit('guess_result', {
+  io.emit('guessResult', {
     ...guess,
     common,
     won,
+    date: new Date().getTime(),
     from: player.userId,
     to: player.opponent.userId
   });
@@ -226,16 +244,16 @@ function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
  * @param socket The socket that submitted event
  */
 function rejoinRoom(socket: JottoSocket) {
-  const player = lobby.getPlayer(socket.userId)
+  const player = lobby.getPlayer(socket.data.userId!)
 
-  lobby.goBackToRoom(socket.userId)
+  lobby.goBackToRoom(socket.data.userId!)
 
   console.group('joined room'.green)
   console.log('username:', player.username)
   console.groupEnd()
 
   // broadcast to all others that a user connected
-  socket.broadcast.emit('user_connect', player.asSession());
+  socket.broadcast.emit('userConnect', player.asSession());
 
   // resend users when rejoining so user knows 
   // who is in the room already
@@ -249,7 +267,7 @@ function rejoinRoom(socket: JottoSocket) {
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
   switch(event.game.state) {
     case GameState.playing:
-      io.emit('game_start', event.game.config())
+      io.emit('gameStart', event.game.config())
 
       console.group('opponents'.cyan)
       for(let player of event.game.players) {
@@ -262,7 +280,7 @@ function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
 
     case GameState.gameOver:
       console.log('game over'.cyan)
-      io.emit('end_game_summary', event.game.summary())
+      io.emit('endGameSummary', event.game.summary())
       break
 
     case GameState.destroyed:

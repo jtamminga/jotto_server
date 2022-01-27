@@ -1,4 +1,5 @@
-import { Session, SessionStore } from './types'
+import { Session } from 'jotto_core';
+import { SessionStore } from './types'
 
 class MemorySessionStore implements SessionStore {
   private sessions: Map<string, Session>;
