@@ -12,6 +12,9 @@ import Lobby from './lobby';
 import { ClientToServerEvents, ServerToClientEvents, SocketData, Session } from 'jotto_core'
 import { DefaultEventsMap } from 'socket.io/dist/typed-events'
 import { createUser } from './utils';
+import { initializeInjections } from './di';
+
+initializeInjections()
 
 // event bus
 const eventBus = container.resolve(EventBus)
@@ -28,7 +31,7 @@ const sessionStore = new MemorySessionStore()
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>({
   cors: {
-    origin: "http://localhost:3000"
+    origin: "*"
   }
 });
 

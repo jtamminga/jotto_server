@@ -6,6 +6,7 @@ import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
 import Players from './players'
+import { AppConfig } from './config'
 
 @autoInjectable()
 class Game extends Players {
@@ -14,7 +15,11 @@ class Game extends Players {
   private _winners: Player[] = []
   private _subscription: Subscription
 
-  constructor(players: ReadonlyArray<Player>, private _bus?: EventBus) {
+  constructor(
+    players: ReadonlyArray<Player>,
+    private _bus?: EventBus,
+    _config?: AppConfig
+  ) {
 
     // shuffle the players
     super(shuffle(players))
@@ -33,6 +38,10 @@ class Game extends Players {
     this._subscription = _bus!.events$
       .pipe(filter(isPlayerEvent))
       .subscribe(event => this.onPlayerEvent(event))
+
+    // set game timer
+    // setTimeout(() => this.updateState(GameState.gameOver),
+    //   60 * 1000 * _config!.gameLength)
   }
 
 
@@ -72,7 +81,7 @@ class Game extends Players {
   }
 
   public summary(): GameSummary {
-    const playerSummaries = this._winners
+    const winners = this._winners
       .map((p, i) => ({
         userId: p.userId,
         place: i + 1,
@@ -80,15 +89,24 @@ class Game extends Players {
         numGuesses: p.guesses.length
       }))
 
-    return { playerSummaries }
+    const losers = this.players
+      .filter(p => !this._winners.includes(p))
+      .sort((a, b) => a.guesses.length - b.guesses.length)
+      .map((p, i) => ({
+        userId: p.userId,
+        place: i + 1 + this._winners.length,
+        word: p.word,
+        numGuesses: p.guesses.length
+      }))
+
+    return { playerSummaries: [ ...winners, ...losers ] }
   }
 
   public leave(userId: string): void {
     this.removePlayer(userId)
 
     if (this._players.length === 0) {
-      this._state = GameState.destroyed
-      this._bus?.publish(GameEvents.stateChange(this))
+      this.updateState(GameState.destroyed)
     }
   }
 
@@ -101,6 +119,15 @@ class Game extends Players {
   // private functions
   // =================
 
+  
+  private updateState(state: GameState) {
+    const preState = this._state
+    this._state = state
+
+    if (preState !== state) {
+      this._bus!.publish(GameEvents.stateChange(this))
+    }
+  }
 
   private onPlayerEvent(event: PlayerEvents.PlayerEvent) {
     switch(event.type) {
@@ -119,8 +146,7 @@ class Game extends Players {
     }
 
     if (this._players.every(p => p.hasWord)) {
-      this._state = GameState.playing;
-      this._bus?.publish(GameEvents.stateChange(this));
+      this.updateState(GameState.playing)
     }
   }
 
@@ -134,8 +160,7 @@ class Game extends Players {
     }
     
     if (this._players.every(p => p.won)) {
-      this._state = GameState.gameOver
-      this._bus?.publish(GameEvents.stateChange(this))
+      this.updateState(GameState.gameOver)
     }
   }
 }

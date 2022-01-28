@@ -4,6 +4,8 @@ import { DefaultEventsMap } from 'socket.io/dist/typed-events'
 
 export type JottoSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
 
+export type Minutes = number
+
 export interface SessionStore {
   findSession(id: string): Session | undefined;
   saveSession(id: string, session: Session): void;
