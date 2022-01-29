@@ -11,7 +11,7 @@ export default class Player extends User {
   private _word: string | undefined = undefined
   private _guesses: Guess[] = []
   private _opponent: Player | undefined = undefined
-  private _won: boolean = false
+  private _wonAt: number | undefined
 
   constructor(session: Session, private _bus?: EventBus) {
     super(session)
@@ -36,7 +36,11 @@ export default class Player extends User {
   }
   
   public get won(): boolean {
-    return this._won
+    return this._wonAt !== undefined
+  }
+
+  public get wonAt(): number | undefined {
+    return this._wonAt
   }
 
   public get opponent(): Player {
@@ -47,9 +51,14 @@ export default class Player extends User {
     return this._opponent
   }
   
-  public get guesses() : Guess[] {
+  public get guesses(): Guess[] {
     return this._guesses;
   }
+
+  public get bestGuess(): number {
+    return this._guesses.reduce((max, g) =>
+      g.common > max ? g.common : max, 0)
+  } 
 
 
   //
@@ -62,7 +71,7 @@ export default class Player extends User {
     let guess: Guess
 
     if (word === this.opponent.word) {
-      this._won = true
+      this._wonAt = new Date().getTime()
       guess = { id, word, date, common: 5, won: true }
       this._guesses.push(guess)
     } else {
@@ -92,14 +101,47 @@ export default class Player extends User {
     this._word = undefined
     this._guesses = []
     this._opponent = undefined
-    this._won = false
+    this._wonAt = undefined
   }
 
   public asPlayerState(): PlayerState {
     return {
       ...this.asSession(),
       ready: this.hasWord,
-      won: this._won
+      won: this.won
     }
+  }
+
+
+  //
+  // Static functions
+  // ================
+
+
+  /**
+   * Sort winners based on least number of guesses first.
+   * If tied then the person who won first.
+   */
+  static sortWinners(a: Player, b: Player): number {
+    if (a.guesses.length === b.guesses.length) {
+      return a.wonAt! - b.wonAt!
+    }
+
+    return a.guesses.length - b.guesses.length
+  }
+
+  /**
+   * Sort losers based on their best guess score.
+   * If tied then the person who had the least guesses.
+   */
+  static sortLosers(a: Player, b: Player): number {
+    const aBest = a.bestGuess
+    const bBest = b.bestGuess
+
+    if (aBest === bBest) {
+      return a.guesses.length - b.guesses.length
+    }
+
+    return aBest - bBest
   }
 }

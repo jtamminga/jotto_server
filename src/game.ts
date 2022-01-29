@@ -1,24 +1,24 @@
 import Player from './player'
 import { shuffle } from './utils'
 import { GameEvents, isPlayerEvent, PlayerEvents } from './events'
-import { GameState, GameConfig, GameSummary, IllegalStateError, History } from './types'
+import { GameState, IllegalStateError, History } from './types'
 import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
 import Players from './players'
 import { AppConfig } from './config'
+import { GameConfig, GameSummary } from 'jotto_core'
 
 @autoInjectable()
 class Game extends Players {
 
   private _state: GameState = GameState.pickingWords
-  private _winners: Player[] = []
   private _subscription: Subscription
 
   constructor(
     players: ReadonlyArray<Player>,
     private _bus?: EventBus,
-    _config?: AppConfig
+    private _config?: AppConfig
   ) {
 
     // shuffle the players
@@ -38,10 +38,6 @@ class Game extends Players {
     this._subscription = _bus!.events$
       .pipe(filter(isPlayerEvent))
       .subscribe(event => this.onPlayerEvent(event))
-
-    // set game timer
-    // setTimeout(() => this.updateState(GameState.gameOver),
-    //   60 * 1000 * _config!.gameLength)
   }
 
 
@@ -57,11 +53,11 @@ class Game extends Players {
   public get guesses(): History[] {
     return this._players
       .reduce<History[]>((guesses, player) =>
-          guesses.concat(player.guesses.map(guess => ({
-            ...guess,
-            from: player.userId,
-            to: player.opponent.userId
-          }))), [])
+        guesses.concat(player.guesses.map(guess => ({
+          ...guess,
+          from: player.userId,
+          to: player.opponent.userId
+        }))), [])
       .sort(g => g.date)
   }
 
@@ -73,6 +69,7 @@ class Game extends Players {
 
   public config(): GameConfig {
     return {
+      gameLength: this._config?.gameLength,
       opponents: this._players.map(player => ({
         id: player.userId,
         opponentId: player.opponent.userId
@@ -81,22 +78,26 @@ class Game extends Players {
   }
 
   public summary(): GameSummary {
-    const winners = this._winners
+    const winners = this._players
+      .filter(p => p.won)
+      .sort(Player.sortWinners)
       .map((p, i) => ({
         userId: p.userId,
         place: i + 1,
         word: p.word,
-        numGuesses: p.guesses.length
+        numGuesses: p.guesses.length,
+        wonAt: p.wonAt
       }))
 
-    const losers = this.players
-      .filter(p => !this._winners.includes(p))
-      .sort((a, b) => a.guesses.length - b.guesses.length)
+    const losers = this._players
+      .filter(p => !p.won)
+      .sort(Player.sortLosers)
       .map((p, i) => ({
         userId: p.userId,
-        place: i + 1 + this._winners.length,
+        place: i + 1 + winners.length,
         word: p.word,
-        numGuesses: p.guesses.length
+        numGuesses: p.guesses.length,
+        wonAt: undefined
       }))
 
     return { playerSummaries: [ ...winners, ...losers ] }
@@ -135,7 +136,7 @@ class Game extends Players {
         this.onSetWord()
         break
       case 'submit_guess':
-        this.onSubmitGuess(event.player)
+        this.onSubmitGuess()
         break
     }
   }
@@ -150,13 +151,9 @@ class Game extends Players {
     }
   }
 
-  private onSubmitGuess(player: Player) {
+  private onSubmitGuess() {
     if (this._state !== GameState.playing) {
       throw new IllegalStateError(`Cannot guess in ${this._state} state`)
-    }
-
-    if (player.won) {
-      this._winners.push(player)
     }
     
     if (this._players.every(p => p.won)) {

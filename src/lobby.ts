@@ -1,3 +1,4 @@
+import { UserRestore, GameConfig, GameSummary, PlayerLobbyState } from 'jotto_core'
 import { filter, Subscription } from 'rxjs'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
@@ -5,7 +6,7 @@ import { GameEvents, isGameStateChangeEvent, isUserEvent, UserEvents } from './e
 import Game from './game'
 import Player from './player'
 import Room from './room'
-import { Disposable, GameConfig, GameState, GameSummary, IllegalStateError, PlayerLobbyState, UserRestore, History } from './types'
+import { Disposable, GameState, IllegalStateError, History } from './types'
 import User from './user'
 import Users from './users'
 import { isPlayer } from './utils'

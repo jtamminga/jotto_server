@@ -5,7 +5,7 @@ import { AppConfig } from './config'
 export function initializeInjections() {
 
   const config = new AppConfig({
-    gameLength: 1
+    gameLength: undefined
   })
 
   container.registerInstance(AppConfig, config)
