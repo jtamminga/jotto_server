@@ -1,4 +1,4 @@
-import { UserRestore, GameConfig, GameSummary, PlayerLobbyState } from 'jotto_core'
+import { UserRestore, GameConfig, GameSummary } from 'jotto_core'
 import { filter, Subscription } from 'rxjs'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
@@ -87,6 +87,14 @@ class Lobby extends Users implements Disposable {
     this._game = new Game(this._room.players)
     this._room.close()
     this._state = 'ingame'
+
+    this.all
+      .filter(u => u.type === 'player')
+      .forEach(u => u.updateState('picking_word'))
+
+    this.all
+      .filter(u => u.type === 'observer')
+      .forEach(u => u.updateState('picked_word'))
   }
 
   public goBackToRoom(userId: string) {
@@ -97,7 +105,9 @@ class Lobby extends Users implements Disposable {
   }
 
   public userRestore(userId: string): UserRestore {
-    const { player, state } = this.playerLobbyState(userId)
+    const user = this.get(userId)
+    const { state } = user
+
     const users = this.all
       .filter(isPlayer)
       .map(p => p.asPlayerState())
@@ -106,6 +116,7 @@ class Lobby extends Users implements Disposable {
     let gameSummary: GameSummary | undefined
     let config: GameConfig | undefined
     let history: History[] | undefined
+    let timeUpOn: number | undefined
 
     switch (state) {
       case 'game_over':
@@ -113,8 +124,9 @@ class Lobby extends Users implements Disposable {
       case 'playing':
         config = this._game!.config()
         history = this._game!.guesses
+        timeUpOn = this._game!.timeUpOn?.getTime()
       case 'picked_word':
-        word = player.word
+        if (user instanceof Player) word = user.word
     }
 
     return {
@@ -122,6 +134,7 @@ class Lobby extends Users implements Disposable {
       users,
       state,
       history,
+      timeUpOn,
       word,
       config,
       gameSummary
@@ -140,7 +153,11 @@ class Lobby extends Users implements Disposable {
 
   private onGameStateChange = (event: GameEvents.GameStateChangeEvent) => {
     switch (event.state) {
+      case GameState.playing:
+        this.all.forEach(u => u.updateState('playing'))
+        break
       case GameState.gameOver:
+        this.all.forEach(u => u.updateState('game_over'))
         this._room.open()
         break
       case GameState.destroyed:
@@ -187,40 +204,6 @@ class Lobby extends Users implements Disposable {
         this._game.leave(userId)
       }
     }
-  }
-
-  /**
-   * Determine the state of the player in the lobby
-   * @param userId The user to get the state for
-   * @returns The player and state of player in the lobby
-   */
-  private playerLobbyState(userId: string): { player: Player, state: PlayerLobbyState} {
-    // check if player is in room
-    if (this._room.isOpen) {
-      const player = this._room.findPlayer(userId)
-      if (player) {
-        return { player, state: 'in_room' }
-      }
-    }
-
-    // check if player is in the game
-    if (this._game) {
-      const player = this._game.findPlayer(userId)
-      if (player) {
-        let state: PlayerLobbyState =
-          player.hasWord ? 'picked_word' : 'picking_word'
-
-        if (this._game.state === GameState.playing) {
-          state = 'playing'
-        } else if (this._game.state === GameState.gameOver) {
-          state = 'game_over'
-        }
-
-        return { player, state }
-      }
-    }
-
-    throw new Error('Player not found')
   }
 }
 

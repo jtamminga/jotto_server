@@ -270,7 +270,7 @@ function rejoinRoom(socket: JottoSocket) {
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
   switch(event.game.state) {
     case GameState.playing:
-      io.emit('gameStart', event.game.config())
+      io.emit('startPlaying', event.game.config())
 
       console.group('opponents'.cyan)
       for(let player of event.game.players) {

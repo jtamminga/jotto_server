@@ -90,6 +90,7 @@ export default class Player extends User {
     }
     
     this._word = word
+    this.updateState('picked_word')
     this._bus?.publish(PlayerEvents.setWord(this))
   } 
 
@@ -102,6 +103,7 @@ export default class Player extends User {
     this._guesses = []
     this._opponent = undefined
     this._wonAt = undefined
+    this.updateState('in_room')
   }
 
   public asPlayerState(): PlayerState {
@@ -142,6 +144,7 @@ export default class Player extends User {
       return a.guesses.length - b.guesses.length
     }
 
-    return aBest - bBest
+    // descending (highest first)
+    return bBest - aBest
   }
 }

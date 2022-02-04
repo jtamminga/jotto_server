@@ -8,12 +8,14 @@ import { filter, Subscription } from 'rxjs'
 import Players from './players'
 import { AppConfig } from './config'
 import { GameConfig, GameSummary } from 'jotto_core'
+import { addMilliseconds } from 'date-fns'
 
 @autoInjectable()
 class Game extends Players {
 
   private _state: GameState = GameState.pickingWords
   private _subscription: Subscription
+  private _timeUpOn: Date | undefined
 
   constructor(
     players: ReadonlyArray<Player>,
@@ -50,6 +52,10 @@ class Game extends Players {
     return this._state
   }
 
+  public get timeUpOn(): Date | undefined {
+    return this._timeUpOn
+  }
+
   public get guesses(): History[] {
     return this._players
       .reduce<History[]>((guesses, player) =>
@@ -69,6 +75,7 @@ class Game extends Players {
 
   public config(): GameConfig {
     return {
+      preGameLength: this._config!.preGameLength,
       gameLength: this._config?.gameLength,
       opponents: this._players.map(player => ({
         id: player.userId,
@@ -130,6 +137,19 @@ class Game extends Players {
     }
   }
 
+  private startTimer() {
+    if (this._config && this._config.gameLength) {
+      const preGameLength = 10_000
+      const gameLength = 60 * 1_000 * this._config!.gameLength
+      const totalMs = preGameLength + gameLength
+
+      this._timeUpOn = addMilliseconds(new Date(), totalMs)
+
+      // set game timer
+      setTimeout(() => this.updateState(GameState.gameOver), totalMs)
+    }
+  }
+
   private onPlayerEvent(event: PlayerEvents.PlayerEvent) {
     switch(event.type) {
       case 'set_word':
@@ -148,6 +168,7 @@ class Game extends Players {
 
     if (this._players.every(p => p.hasWord)) {
       this.updateState(GameState.playing)
+      this.startTimer()
     }
   }
 

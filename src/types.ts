@@ -4,6 +4,7 @@ import { DefaultEventsMap } from 'socket.io/dist/typed-events'
 
 export type JottoSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
 
+export type Seconds = number
 export type Minutes = number
 
 export interface SessionStore {
