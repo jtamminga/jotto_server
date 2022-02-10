@@ -1,6 +1,6 @@
 import { PlayerLobbyState, Session, UserType } from 'jotto_core'
 
-class User implements Session {
+abstract class User implements Session {
 
   protected _userId: string
   protected _username: string
@@ -64,6 +64,8 @@ class User implements Session {
       type: this._type
     }
   }
+
+  abstract userState(): Session
 
 }
 

@@ -6,7 +6,7 @@ export function initializeInjections() {
 
   const config = new AppConfig({
     preGameLength: 10, // seconds
-    gameLength: 1 // minutes
+    gameLength: 10 // minutes
   })
 
   container.registerInstance(AppConfig, config)

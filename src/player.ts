@@ -106,7 +106,7 @@ export default class Player extends User {
     this.updateState('in_room')
   }
 
-  public asPlayerState(): PlayerState {
+  public userState(): PlayerState {
     return {
       ...this.asSession(),
       ready: this.hasWord,

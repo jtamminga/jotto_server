@@ -3,7 +3,7 @@ import 'colors';
 import MemorySessionStore from './memorySessionStore';
 import { randomBytes } from 'crypto';
 import { Server } from 'socket.io';
-import { GameState, GuessSubmission, JottoSocket, PlayerState } from './types';
+import { GameState, GuessSubmission, JottoSocket } from './types';
 import { filter } from 'rxjs';
 import { GameEvents, UserEvents } from './events';
 import { container } from 'tsyringe';
@@ -165,7 +165,7 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   console.groupEnd();
 
   // notify other users
-  socket.broadcast.emit('userDisconnect', socket.data.userId!);
+  socket.broadcast.emit('userDisconnect', socket.data.userId!, intended);
 
   eventBus.publish(UserEvents.userDisconnected(socket.data.userId!, intended))
 }
@@ -175,12 +175,11 @@ function userDisconnect(socket: JottoSocket, reason: string) {
  * @param socket The connected socket
  */
 function sendUsers(socket: JottoSocket) {
-  // TODO: send either playerstate or observer state
-  const playerStates = lobby.connected
-    .map(p => p.asSession())
+  const userStates = lobby.connected
+    .map(p => p.userState())
 
   // send all connected users to the connected user
-  socket.emit('users', playerStates)
+  socket.emit('users', userStates)
 }
 
 /**
@@ -249,7 +248,7 @@ function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
 function rejoinRoom(socket: JottoSocket) {
   const player = lobby.getPlayer(socket.data.userId!)
 
-  lobby.goBackToRoom(socket.data.userId!)
+  lobby.goBackToRoom(player.userId)
 
   console.group('joined room'.green)
   console.log('username:', player.username)
@@ -260,11 +259,15 @@ function rejoinRoom(socket: JottoSocket) {
 
   // resend users when rejoining so user knows 
   // who is in the room already
-  const users: PlayerState[] = lobby.room.players
-    .map(player => player.asPlayerState())
+  const users = lobby.room.players
+    .map(player => player.userState())
+
+  // also send over all observers
+  const observers = lobby.observers
+    .map(observer => observer.userState())
 
   // send to user all connected users
-  socket.emit('users', users)
+  socket.emit('users', [...users, ...observers])
 }
 
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {

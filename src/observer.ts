@@ -7,4 +7,8 @@ export default class Observer extends User {
     super(session)
   }
 
+  public userState(): Session {
+    return this.asSession()
+  }
+
 }

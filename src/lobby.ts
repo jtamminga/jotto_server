@@ -4,12 +4,13 @@ import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { GameEvents, isGameStateChangeEvent, isUserEvent, UserEvents } from './events'
 import Game from './game'
+import Observer from './observer'
 import Player from './player'
 import Room from './room'
 import { Disposable, GameState, IllegalStateError, History } from './types'
 import User from './user'
 import Users from './users'
-import { isPlayer } from './utils'
+import { isObserver } from './utils'
 
 export type LobbyState =
   | 'inroom'
@@ -59,6 +60,10 @@ class Lobby extends Users implements Disposable {
     return this._game
   }
 
+  public get observers(): Observer[] {
+    return this.all.filter(isObserver)
+  }
+
 
   //
   // public functions
@@ -106,11 +111,17 @@ class Lobby extends Users implements Disposable {
 
   public userRestore(userId: string): UserRestore {
     const user = this.get(userId)
-    const { state } = user
+    let { state } = user
+
+    // handle observer refreshing after game gets destroyed
+    if (user.type === 'observer'
+        && user.state === 'game_over'
+        && this._game === undefined) {
+      state = 'in_room'
+    }
 
     const users = this.all
-      .filter(isPlayer)
-      .map(p => p.asPlayerState())
+      .map(u => u.userState())
 
     let word: string | undefined
     let gameSummary: GameSummary | undefined

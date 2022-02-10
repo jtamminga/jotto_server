@@ -36,6 +36,10 @@ export function isPlayer(user: User): user is Player {
   return user.type === 'player'
 }
 
+export function isObserver(user: User): user is Observer {
+  return user.type === 'observer'
+}
+
 export function createUser(user: Session): User {
   if (user.type === 'player') {
     return new Player(user)
