@@ -7,15 +7,17 @@ import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
 import Players from './players'
 import { AppConfig } from './config'
-import { GameConfig, GameSummary } from 'jotto_core'
-import { addMilliseconds } from 'date-fns'
+import { GameConfig, GameOverReason, GameSummary } from 'jotto_core'
+import { addMilliseconds, addMinutes, differenceInSeconds, formatDuration, intervalToDuration } from 'date-fns'
 
 @autoInjectable()
 class Game extends Players {
 
   private _state: GameState = GameState.pickingWords
   private _subscription: Subscription
-  private _timeUpOn: Date | undefined
+  private _startedOn: Date | undefined
+  private _endedOn: Date | undefined
+  private _reason: GameOverReason | undefined
 
   constructor(
     players: ReadonlyArray<Player>,
@@ -52,8 +54,8 @@ class Game extends Players {
     return this._state
   }
 
-  public get timeUpOn(): Date | undefined {
-    return this._timeUpOn
+  public get startedOn(): Date | undefined {
+    return this._startedOn
   }
 
   public get guesses(): History[] {
@@ -85,6 +87,10 @@ class Game extends Players {
   }
 
   public summary(): GameSummary {
+    if (this._startedOn === undefined || this._endedOn === undefined) {
+      throw new IllegalStateError('dates are not set properly')
+    }
+
     const winners = this._players
       .filter(p => p.won)
       .sort(Player.sortWinners)
@@ -93,7 +99,8 @@ class Game extends Players {
         place: i + 1,
         word: p.word,
         numGuesses: p.guesses.length,
-        wonAt: p.wonAt
+        wonAt: p.wonAt,
+        bestGuess: p.bestGuess
       }))
 
     const losers = this._players
@@ -104,10 +111,15 @@ class Game extends Players {
         place: i + 1 + winners.length,
         word: p.word,
         numGuesses: p.guesses.length,
-        wonAt: undefined
+        wonAt: undefined,
+        bestGuess: p.bestGuess
       }))
 
-    return { playerSummaries: [ ...winners, ...losers ] }
+    return {
+      gameLength: differenceInSeconds(this._startedOn, this._endedOn),
+      gameOverReason: this._reason!,
+      playerSummaries: [ ...winners, ...losers ]
+    }
   }
 
   public leave(userId: string): void {
@@ -137,16 +149,19 @@ class Game extends Players {
     }
   }
 
-  private startTimer() {
-    if (this._config && this._config.gameLength) {
-      const preGameLength = 10_000
-      const gameLength = 60 * 1_000 * this._config!.gameLength
-      const totalMs = preGameLength + gameLength
+  private processTimings() {
+    // determine start time
+    const preGameLength = this._config!.preGameLength * 1_000 // sec -> ms
+    this._startedOn = addMilliseconds(Date.now(), preGameLength)
 
-      this._timeUpOn = addMilliseconds(new Date(), totalMs)
+    // if game length is defined
+    // then set timer for the end of the game
+    if (this._config?.gameLength !== undefined) {
+      const gameLength = this._config.gameLength * 60 * 1_000 // min -> ms
+      const total = preGameLength + gameLength
 
       // set game timer
-      setTimeout(() => this.updateState(GameState.gameOver), totalMs)
+      setTimeout(() => this.gameOver('time_up'), total)
     }
   }
 
@@ -168,7 +183,7 @@ class Game extends Players {
 
     if (this._players.every(p => p.hasWord)) {
       this.updateState(GameState.playing)
-      this.startTimer()
+      this.processTimings()
     }
   }
 
@@ -178,8 +193,36 @@ class Game extends Players {
     }
     
     if (this._players.every(p => p.won)) {
-      this.updateState(GameState.gameOver)
+      this.gameOver('all_won')
     }
+  }
+
+  private gameOver(reason: GameOverReason) {
+    if (this._startedOn === undefined) {
+      throw new IllegalStateError('game does not have start time')
+    }
+
+    const actualDuration = intervalToDuration({
+      start: this._startedOn!,
+      end: Date.now()
+    })
+
+    console.log('actual game time:', formatDuration(actualDuration))
+
+    this._reason = reason
+
+    if (reason === 'all_won') {
+      this._endedOn = new Date()
+    }
+    else if (reason === 'time_up') {
+      if (this._config?.gameLength === undefined) {
+        throw new IllegalStateError('game does not have a length')
+      }      
+
+      this._endedOn = addMinutes(this._startedOn, this._config.gameLength)
+    }
+ 
+    this.updateState(GameState.gameOver)
   }
 }
 

@@ -71,11 +71,11 @@ class Lobby extends Users implements Disposable {
 
 
   public addUser(user: User): void {
-    this.add(user)
-
     if (user instanceof Player) {
       this._room.addPlayer(user)
     }
+
+    this.add(user)
   }
 
   public getPlayer(userId: string): Player {
@@ -91,6 +91,7 @@ class Lobby extends Users implements Disposable {
   public startGame() {
     this._game = new Game(this._room.players)
     this._room.close()
+    console.log('room closed')
     this._state = 'ingame'
 
     this.all
@@ -127,7 +128,7 @@ class Lobby extends Users implements Disposable {
     let gameSummary: GameSummary | undefined
     let config: GameConfig | undefined
     let history: History[] | undefined
-    let timeUpOn: number | undefined
+    let startedOn: number | undefined
 
     switch (state) {
       case 'game_over':
@@ -135,7 +136,7 @@ class Lobby extends Users implements Disposable {
       case 'playing':
         config = this._game!.config()
         history = this._game!.guesses
-        timeUpOn = this._game!.timeUpOn?.getTime()
+        startedOn = this._game!.startedOn?.getTime()
       case 'picked_word':
         if (user instanceof Player) word = user.word
     }
@@ -145,7 +146,7 @@ class Lobby extends Users implements Disposable {
       users,
       state,
       history,
-      timeUpOn,
+      startedOn,
       word,
       config,
       gameSummary

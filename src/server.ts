@@ -90,6 +90,12 @@ io.on('connection', (socket) => {
 function userConnect(socket: JottoSocket) {
   let session = sessionStore.findSession(socket.data.sessionId!)
 
+  if (session) {
+    userReconnect(socket, session)
+  } else {
+    newUserConnect(socket)
+  }
+
   console.group('user connected'.green);
   console.log('username:  ', socket.data.username);
   console.log('sessionId: ', socket.data.sessionId);
@@ -97,12 +103,6 @@ function userConnect(socket: JottoSocket) {
   console.log('type:      ', socket.data.type);
   console.log('reconnect: ', !!session);
   console.groupEnd();
-
-  if (session) {
-    userReconnect(socket, session)
-  } else {
-    newUserConnect(socket)
-  }
 }
 
 /**
