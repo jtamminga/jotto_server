@@ -1,4 +1,4 @@
-import { Session } from 'jotto_core'
+import { ObserverState, Session } from 'jotto_core'
 import User from './user'
 
 export default class Observer extends User {
@@ -7,8 +7,8 @@ export default class Observer extends User {
     super(session)
   }
 
-  public userState(): Session {
-    return this.asSession()
+  public userState(): ObserverState {
+    return this.asSession() as ObserverState
   }
 
 }

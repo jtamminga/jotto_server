@@ -1,8 +1,8 @@
-import { Session, duplicates, numIntersect } from 'jotto_core'
+import { Session, duplicates, numIntersect, PlayerPerf, PlayerState } from 'jotto_core'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { PlayerEvents } from './events'
-import { Guess, GuessSubmission, PlayerState } from './types'
+import { Guess, GuessSubmission } from './types'
 import User from './user'
 
 @autoInjectable()
@@ -58,7 +58,15 @@ export default class Player extends User {
   public get bestGuess(): number {
     return this._guesses.reduce((max, g) =>
       g.common > max ? g.common : max, 0)
-  } 
+  }
+
+  public get perf(): PlayerPerf {
+    return {
+      numGuesses: this._guesses.length,
+      bestGuess: this.bestGuess,
+      wonAt: this._wonAt
+    }
+  }
 
 
   //
@@ -108,9 +116,9 @@ export default class Player extends User {
 
   public userState(): PlayerState {
     return {
-      ...this.asSession(),
+      ...this.asSession() as PlayerState,
       ready: this.hasWord,
-      won: this.won
+      wonAt: this._wonAt
     }
   }
 

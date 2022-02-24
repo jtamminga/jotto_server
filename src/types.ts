@@ -34,12 +34,6 @@ export type PlayerLobbyState =
   | 'playing'
   | 'game_over'
 
-// the collection of player states
-export interface PlayerState extends Session {
-  won: boolean;
-  ready: boolean;
-}
-
 export interface GameConfig {
   opponents: { id: string, opponentId: string }[]
 }

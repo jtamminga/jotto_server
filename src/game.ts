@@ -7,7 +7,7 @@ import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
 import Players from './players'
 import { AppConfig } from './config'
-import { GameConfig, GameOverReason, GameSummary } from 'jotto_core'
+import { comparePlayers, GameConfig, GameOverReason, GameSummary } from 'jotto_core'
 import { addMilliseconds, addMinutes, differenceInSeconds, formatDuration, intervalToDuration } from 'date-fns'
 
 @autoInjectable()
@@ -91,9 +91,8 @@ class Game extends Players {
       throw new IllegalStateError('dates are not set properly')
     }
 
-    const winners = this._players
-      .filter(p => p.won)
-      .sort(Player.sortWinners)
+    const playerSummaries = this._players
+      .sort((a, b) => comparePlayers(a.perf, b.perf))
       .map((p, i) => ({
         userId: p.userId,
         place: i + 1,
@@ -103,22 +102,10 @@ class Game extends Players {
         bestGuess: p.bestGuess
       }))
 
-    const losers = this._players
-      .filter(p => !p.won)
-      .sort(Player.sortLosers)
-      .map((p, i) => ({
-        userId: p.userId,
-        place: i + 1 + winners.length,
-        word: p.word,
-        numGuesses: p.guesses.length,
-        wonAt: undefined,
-        bestGuess: p.bestGuess
-      }))
-
     return {
       gameLength: differenceInSeconds(this._startedOn, this._endedOn),
       gameOverReason: this._reason!,
-      playerSummaries: [ ...winners, ...losers ]
+      playerSummaries
     }
   }
 
