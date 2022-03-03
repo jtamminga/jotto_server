@@ -18,6 +18,7 @@ class Game extends Players {
   private _startedOn: Date | undefined
   private _endedOn: Date | undefined
   private _reason: GameOverReason | undefined
+  private _summary: GameSummary | undefined
 
   constructor(
     players: ReadonlyArray<Player>,
@@ -66,7 +67,7 @@ class Game extends Players {
           from: player.userId,
           to: player.opponent.userId
         }))), [])
-      .sort(g => g.date)
+      .sort((a, b) => a.date - b.date)
   }
 
 
@@ -87,6 +88,10 @@ class Game extends Players {
   }
 
   public summary(): GameSummary {
+    if (this._summary) {
+      return this._summary
+    }
+
     if (this._startedOn === undefined || this._endedOn === undefined) {
       throw new IllegalStateError('dates are not set properly')
     }
@@ -95,6 +100,7 @@ class Game extends Players {
       .sort((a, b) => comparePlayers(a.perf, b.perf))
       .map((p, i) => ({
         userId: p.userId,
+        username: p.username,
         place: i + 1,
         word: p.word,
         numGuesses: p.guesses.length,
@@ -102,11 +108,13 @@ class Game extends Players {
         bestGuess: p.bestGuess
       }))
 
-    return {
+    this._summary = {
       gameLength: differenceInSeconds(this._startedOn, this._endedOn),
       gameOverReason: this._reason!,
       playerSummaries
     }
+
+    return this._summary
   }
 
   public leave(userId: string): void {

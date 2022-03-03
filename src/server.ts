@@ -77,7 +77,7 @@ io.on('connection', (socket) => {
   userConnect(socket);
 
   // socket.onAny((event) => {
-  //   console.log(`[${event}]`.gray.bold, 'from'.gray, socket.username.gray.italic);
+  //   console.log(`[${event}]`.gray.bold, 'from'.gray, socket.data.username);
   // });
 
 });

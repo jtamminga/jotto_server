@@ -127,7 +127,7 @@ engine.io@~6.1.0:
     ws "~8.2.3"
 
 "jotto_core@file:../jotto_core":
-  version "1.13.0"
+  version "1.13.1"
 
 mime-db@1.51.0:
   version "1.51.0"
