@@ -1,4 +1,4 @@
-import User from "./user";
+import User from './user'
 
 export default class Users<T extends User = User> {
 
@@ -57,6 +57,10 @@ export default class Users<T extends User = User> {
     }
 
     this._users.splice(index, 1)
+  }
+
+  protected clear(): void {
+    this._users = []
   }
 
 }

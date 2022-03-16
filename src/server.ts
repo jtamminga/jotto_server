@@ -1,18 +1,18 @@
 import 'reflect-metadata'
-import 'colors';
-import MemorySessionStore from './memorySessionStore';
-import { randomBytes } from 'crypto';
-import { Server } from 'socket.io';
-import { GameState, GuessSubmission, JottoSocket } from './types';
-import { filter } from 'rxjs';
-import { GameEvents, UserEvents } from './events';
-import { container } from 'tsyringe';
-import { EventBus } from './eventBus';
-import Lobby from './lobby';
-import { ClientToServerEvents, ServerToClientEvents, SocketData, Session } from 'jotto_core'
+import 'colors'
+import { v4 as randomId } from 'uuid'
+import MemorySessionStore from './memorySessionStore'
+import { Server } from 'socket.io'
+import { GameState, GuessSubmission, JottoSocket } from './types'
+import { filter } from 'rxjs'
+import { GameEvents, UserEvents } from './events'
+import { container } from 'tsyringe'
+import { EventBus } from './eventBus'
+import Lobby from './lobby'
+import { ClientToServerEvents, ServerToClientEvents, SocketData, Session, HostConfig, UserType, IllegalStateError } from 'jotto_core'
 import { DefaultEventsMap } from 'socket.io/dist/typed-events'
-import { createUser } from './utils';
-import { initializeInjections } from './di';
+import { createUser } from './utils'
+import { initializeInjections } from './di'
 
 initializeInjections()
 
@@ -21,57 +21,72 @@ const eventBus = container.resolve(EventBus)
 
 eventBus.events$
   .pipe(filter(GameEvents.isStateChange))
-  .subscribe(onGameStateChange);
-
-const randomId = () => randomBytes(8).toString('hex');
+  .subscribe(onGameStateChange)
 
 // 
-const lobby = new Lobby()
+const lobbies: Lobby[] = []
 const sessionStore = new MemorySessionStore()
+
+// map socket.id -> lobby
+const sessionLobby = new Map<string, Lobby>()
+// map socket.id -> user
+// const socketUser = new Map<string, User>()
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>({
   cors: {
     origin: "*"
   }
-});
+})
 
 // spin it up
-io.listen(3001);
+io.listen(3001)
 console.log('server started'.cyan)
 
 // middleware
 io.use((socket, next) => {
-  const sessionId = socket.handshake.auth.sessionId;
+  const sessionId = socket.handshake.auth.sessionId
+  console.log( '[middleware]'.gray.bold, `sessionId: ${sessionId}`.gray)
   
   if (sessionId) {
-    const session = sessionStore.findSession(sessionId);
+    const session = sessionStore.findSession(sessionId)
     if (session) {
+      console.log( '[middleware]'.gray.bold, 'session found')
+
       socket.data.sessionId = sessionId
       socket.data.userId = session.userId
       socket.data.username = session.username
-      socket.data.type = session.type
-      return next();
+      return next()
     }
   }
 
-  const username = socket.handshake.auth.username;
-  if (!username) {
-    return next(new Error("invalid username"));
+  const lobbyCode = socket.handshake.auth.lobbyCode
+
+  socket.data.sessionId = randomId()
+  socket.data.userId = randomId()
+  socket.data.lobbyCode = lobbyCode
+
+  if (lobbyCode === undefined) {
+    next()
+  } else {
+    const lobby = lobbies.find(l => l.code === lobbyCode)
+    if (lobby && lobby.room.isOpen) {
+      next()
+    } else {
+      console.log('lobby not available'.bgRed)
+      const error = new Error('lobby not available')
+      next(error)
+    }
   }
-  socket.data.sessionId = randomId();
-  socket.data.userId = randomId();
-  socket.data.username = username;
-  socket.data.type = socket.handshake.auth.type
-  next();
 });
 
 io.on('connection', (socket) => {
   // setup listeners on connected socket
-  socket.on('disconnect', (reason) => userDisconnect(socket, reason));
-  socket.on('startGame', () => startGame());
-  socket.on('submitWord', (word) => submitWord(socket, word));
-  socket.on('submitGuess', (guess) => submitGuess(socket, guess));
-  socket.on('rejoinRoom', () => rejoinRoom(socket));
+  socket.on('disconnect', (reason) => userDisconnect(socket, reason))
+  socket.on('joinRoom', (username, type) => joinRoom(socket, username, type))
+  socket.on('startGame', (config) => startGame(socket, config))
+  socket.on('submitWord', (word) => submitWord(socket, word))
+  socket.on('submitGuess', (guess) => submitGuess(socket, guess))
+  socket.on('rejoinRoom', () => rejoinRoom(socket))
 
   // connect user
   userConnect(socket);
@@ -90,12 +105,6 @@ io.on('connection', (socket) => {
 function userConnect(socket: JottoSocket) {
   let session = sessionStore.findSession(socket.data.sessionId!)
 
-  if (session) {
-    userReconnect(socket, session)
-  } else {
-    newUserConnect(socket)
-  }
-
   console.group('user connected'.green);
   console.log('username:  ', socket.data.username);
   console.log('sessionId: ', socket.data.sessionId);
@@ -103,6 +112,12 @@ function userConnect(socket: JottoSocket) {
   console.log('type:      ', socket.data.type);
   console.log('reconnect: ', !!session);
   console.groupEnd();
+
+  if (session) {
+    userReconnect(socket, session)
+  } else {
+    newUserConnect(socket)
+  }
 }
 
 /**
@@ -110,33 +125,53 @@ function userConnect(socket: JottoSocket) {
  * @param socket The socket that connected
  */
 function newUserConnect(socket: JottoSocket) {
+  let lobby: Lobby
+  if (socket.data.lobbyCode) {
+    const l = lobbies.find(l => l.code === socket.data.lobbyCode)
+    if (!l) {
+      throw new IllegalStateError('lobby not found')
+    }
+    console.log(`lobby ${l.code} found`)
+
+    lobby = l
+    socket.data.host = false
+    sessionLobby.set(socket.data.sessionId!, lobby)
+  } else {
+    socket.data.host = true
+    lobby = createLobby(socket)
+    console.log(`lobby ${lobby.code} created`)
+  }
+
   // send session details to connected user
   socket.emit('session', {
     sessionId: socket.data.sessionId!,
-    userId: socket.data.userId!
+    userId: socket.data.userId!,
+    lobbyCode: lobby.code
   });
 
   const session: Session = {
     userId: socket.data.userId!,
-    username: socket.data.username!,
-    type: socket.data.type!,
-    connected: true
+    username: socket.data.username!
   }
 
   sessionStore.saveSession(socket.data.sessionId!, session)
 
-  lobby.addUser(createUser(session))
+  eventBus.publish(UserEvents.userConnected(socket.data.userId!, false))
+
+  socket.join(lobby.code)
+
+  // lobby.add(createUser(session))
 
   // broadcast to all others that a user connected
-  socket.broadcast.emit('userConnect', session)
+  // socket.broadcast.emit('userConnect', session)
   
-  eventBus.publish(UserEvents.userConnected(session.userId, false))
+  // eventBus.publish(UserEvents.userConnected(session.userId, false))
 
   // send all connected users including the user just connected
   // to just the connected user
   // this allows the connected user to see any users that 
   // connected before 
-  sendUsers(socket)
+  // sendUsers(socket)
 }
 
 /**
@@ -145,7 +180,14 @@ function newUserConnect(socket: JottoSocket) {
  * @param session The user's session
  */
 function userReconnect(socket: JottoSocket, session: Session) {
-  socket.broadcast.emit('userConnect', session)
+  console.log('=============')
+  console.log('userReconnect')
+  const lobby = getLobby(socket)
+  console.log('lobby', lobby.code)
+  const user = lobby.get(session.userId)
+  console.log('user', user.userId)
+
+  socket.broadcast.emit('userConnect', user.userState())
   eventBus.publish(UserEvents.userConnected(session.userId, true))
   socket.emit('restore', lobby.userRestore(session.userId))
 }
@@ -170,11 +212,33 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   eventBus.publish(UserEvents.userDisconnected(socket.data.userId!, intended))
 }
 
-/**
- * Send users to user including the user itself
- * @param socket The connected socket
- */
-function sendUsers(socket: JottoSocket) {
+function joinRoom(socket: JottoSocket, username: string, type: UserType) {
+  const lobby = getLobby(socket)
+
+  const user = createUser({
+    userId: socket.data.userId!,
+    username,
+    type,
+    host: socket.data.host!
+  })
+
+  lobby.add(user)
+
+  console.group('user joined lobby'.gray)
+  console.log('lobby:     ', lobby.code)
+  console.log('username:  ', user.username)
+  console.log('userId:    ', user.userId)
+  console.log('type:      ', user.type)
+  console.log('host:      ', user.host)
+  console.groupEnd();
+
+  // broadcast to all others that a user connected
+  socket.broadcast.to(lobby.code).emit('userConnect', user.userState())
+
+  // send all connected users including the user just connected
+  // to just the connected user
+  // this allows the connected user to see any users that 
+  // connected before
   const userStates = lobby.connected
     .map(p => p.userState())
 
@@ -185,9 +249,11 @@ function sendUsers(socket: JottoSocket) {
 /**
  * Start the game
  */
-function startGame() {
-  lobby.startGame()
-  io.emit('wordPicking')
+function startGame(socket: JottoSocket, config: HostConfig) {
+  const lobby = getLobby(socket)
+
+  lobby.startGame(config)
+  io.to(lobby.code).emit('wordPicking')
 
   console.group('game started'.cyan)
   console.log('in game:'.bold)
@@ -202,6 +268,7 @@ function startGame() {
  * @param word The word submitted
  */
 function submitWord(socket: JottoSocket, word: string) {
+  const lobby = getLobby(socket)
   const player = lobby.getPlayer(socket.data.userId!)
 
   console.group('word submitted'.magenta);
@@ -219,6 +286,7 @@ function submitWord(socket: JottoSocket, word: string) {
  * @param word The guess that was made
  */
 function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
+  const lobby = getLobby(socket)
   const player = lobby.getPlayer(socket.data.userId!)
 
   const { common, won } = player.addGuess(guess)
@@ -231,7 +299,7 @@ function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
   console.log('won:   ', won);
   console.groupEnd();
 
-  io.emit('guessResult', {
+  io.to(lobby.code).emit('guessResult', {
     ...guess,
     common,
     won,
@@ -246,6 +314,7 @@ function submitGuess(socket: JottoSocket, guess: GuessSubmission) {
  * @param socket The socket that submitted event
  */
 function rejoinRoom(socket: JottoSocket) {
+  const lobby = getLobby(socket)
   const player = lobby.getPlayer(socket.data.userId!)
 
   lobby.goBackToRoom(player.userId)
@@ -255,11 +324,11 @@ function rejoinRoom(socket: JottoSocket) {
   console.groupEnd()
 
   // broadcast to all others that a user connected
-  socket.broadcast.emit('userConnect', player.asSession());
+  socket.broadcast.emit('userConnect', player.userState());
 
   // resend users when rejoining so user knows 
   // who is in the room already
-  const users = lobby.room.players
+  const users = lobby.room.all
     .map(player => player.userState())
 
   // also send over all observers
@@ -292,5 +361,28 @@ function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
     case GameState.destroyed:
       console.log('game destroyed'.cyan)
   }
+}
+
+function createLobby(socket: JottoSocket): Lobby {
+  // TODO: generate proper lobby code
+  const code = '0000'
+  const lobby = new Lobby(code)
+
+  lobbies.push(lobby)
+  sessionLobby.set(socket.data.sessionId!, lobby)
+
+  return lobby
+}
+
+function getLobby(socket: JottoSocket): Lobby {
+  console.log('getLobby', socket.data.sessionId)
+  console.log('socketLobby', sessionLobby)
+  const lobby = sessionLobby.get(socket.data.sessionId!)
+
+  if (!lobby) {
+    throw new IllegalStateError('user does not belong to lobby')
+  }
+
+  return lobby
 }
 

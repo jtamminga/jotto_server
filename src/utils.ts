@@ -1,4 +1,4 @@
-import { Session } from 'jotto_core';
+import { UserData } from 'jotto_core';
 import Observer from './observer';
 import Player from './player'
 import User from './user'
@@ -40,7 +40,7 @@ export function isObserver(user: User): user is Observer {
   return user.type === 'observer'
 }
 
-export function createUser(user: Session): User {
+export function createUser(user: UserData): User {
   if (user.type === 'player') {
     return new Player(user)
   }

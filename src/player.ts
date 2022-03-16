@@ -1,4 +1,4 @@
-import { Session, duplicates, numIntersect, PlayerPerf, PlayerState } from 'jotto_core'
+import { duplicates, numIntersect, PlayerPerf, PlayerState, UserData } from 'jotto_core'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
 import { PlayerEvents } from './events'
@@ -13,8 +13,11 @@ export default class Player extends User {
   private _opponent: Player | undefined = undefined
   private _wonAt: number | undefined
 
-  constructor(session: Session, private _bus?: EventBus) {
-    super(session)
+  constructor(
+    userData: UserData,
+    private _bus?: EventBus
+  ) {
+    super(userData)
   }
 
 
@@ -116,7 +119,8 @@ export default class Player extends User {
 
   public userState(): PlayerState {
     return {
-      ...this.asSession() as PlayerState,
+      ...super.userState(),
+      type: 'player',
       ready: this.hasWord,
       wonAt: this._wonAt
     }

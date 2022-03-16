@@ -1,13 +1,13 @@
 import Player from './player'
 import { shuffle } from './utils'
 import { GameEvents, isPlayerEvent, PlayerEvents } from './events'
-import { GameState, IllegalStateError, History } from './types'
+import { GameState, History } from './types'
 import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
 import Players from './players'
 import { AppConfig } from './config'
-import { comparePlayers, GameConfig, GameOverReason, GameSummary } from 'jotto_core'
+import { comparePlayers, GameConfig, GameOverReason, GameSummary, HostConfig, IllegalStateError } from 'jotto_core'
 import { addMilliseconds, addMinutes, differenceInSeconds, formatDuration, intervalToDuration } from 'date-fns'
 
 @autoInjectable()
@@ -21,6 +21,7 @@ class Game extends Players {
   private _summary: GameSummary | undefined
 
   constructor(
+    private _hostConfig: HostConfig,
     players: ReadonlyArray<Player>,
     private _bus?: EventBus,
     private _config?: AppConfig
@@ -79,7 +80,7 @@ class Game extends Players {
   public config(): GameConfig {
     return {
       preGameLength: this._config!.preGameLength,
-      gameLength: this._config?.gameLength,
+      gameLength: this._hostConfig.gameLength,
       opponents: this._players.map(player => ({
         id: player.userId,
         opponentId: player.opponent.userId
@@ -151,8 +152,8 @@ class Game extends Players {
 
     // if game length is defined
     // then set timer for the end of the game
-    if (this._config?.gameLength !== undefined) {
-      const gameLength = this._config.gameLength * 60 * 1_000 // min -> ms
+    if (this._hostConfig.gameLength !== undefined) {
+      const gameLength = this._hostConfig.gameLength * 60 * 1_000 // min -> ms
       const total = preGameLength + gameLength
 
       // set game timer
@@ -210,11 +211,11 @@ class Game extends Players {
       this._endedOn = new Date()
     }
     else if (reason === 'time_up') {
-      if (this._config?.gameLength === undefined) {
+      if (this._hostConfig.gameLength === undefined) {
         throw new IllegalStateError('game does not have a length')
       }      
 
-      this._endedOn = addMinutes(this._startedOn, this._config.gameLength)
+      this._endedOn = addMinutes(this._startedOn, this._hostConfig.gameLength)
     }
  
     this.updateState(GameState.gameOver)

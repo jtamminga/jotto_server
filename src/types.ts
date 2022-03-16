@@ -71,8 +71,6 @@ export enum GameState {
   destroyed
 }
 
-export class IllegalStateError extends Error { }
-
 export interface Disposable {
   dispose(): void
 }

@@ -1,13 +1,13 @@
-import { UserRestore, GameConfig, GameSummary } from 'jotto_core'
+import { UserRestore, GameConfig, GameSummary, HostConfig, IllegalStateError } from 'jotto_core'
 import { filter, Subscription } from 'rxjs'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
-import { GameEvents, isGameStateChangeEvent, isUserEvent, UserEvents } from './events'
+import { GameEvents, isGameStateChangeEvent } from './events'
 import Game from './game'
 import Observer from './observer'
 import Player from './player'
 import Room from './room'
-import { Disposable, GameState, IllegalStateError, History } from './types'
+import { Disposable, GameState, History } from './types'
 import User from './user'
 import Users from './users'
 import { isObserver } from './utils'
@@ -21,10 +21,13 @@ class Lobby extends Users implements Disposable {
 
   private _subscriptions: Subscription[] = []
   private _game: Game | undefined = undefined
-  private _room: Room = new Room()
+  private _room = new Room<Player>()
   private _state: LobbyState = 'inroom'
 
-  constructor(_bus?: EventBus) {
+  constructor(
+    private _code: string,
+    _bus?: EventBus
+  ) {
     super()
 
     this._subscriptions.push(_bus!.events$
@@ -32,10 +35,10 @@ class Lobby extends Users implements Disposable {
       .subscribe(this.onGameStateChange)
     )
 
-    this._subscriptions.push(_bus!.events$
-      .pipe(filter(isUserEvent))
-      .subscribe(this.onUserEvent)
-    )
+    // this._subscriptions.push(_bus!.events$
+    //   .pipe(filter(isUserEvent))
+    //   .subscribe(this.onUserEvent)
+    // )
   }
 
 
@@ -44,7 +47,11 @@ class Lobby extends Users implements Disposable {
   // =================
 
 
-  public get room(): Room {
+  public get code(): string {
+    return this._code
+  }
+
+  public get room(): Room<Player> {
     return this._room
   }
 
@@ -70,12 +77,12 @@ class Lobby extends Users implements Disposable {
   // ================
 
 
-  public addUser(user: User): void {
+  public add(user: User): void {
     if (user instanceof Player) {
-      this._room.addPlayer(user)
+      this._room.add(user)
     }
 
-    this.add(user)
+    super.add(user)
   }
 
   public getPlayer(userId: string): Player {
@@ -88,8 +95,8 @@ class Lobby extends Users implements Disposable {
     throw new Error('User is not a player')
   }
 
-  public startGame() {
-    this._game = new Game(this._room.players)
+  public startGame(config: HostConfig) {
+    this._game = new Game(config, this._room.all)
     this._room.close()
     console.log('room closed')
     this._state = 'ingame'
@@ -107,7 +114,7 @@ class Lobby extends Users implements Disposable {
     const player = this.getPlayer(userId)
     this._game!.leave(userId)
     player.reset()
-    this._room.addPlayer(player)
+    this._room.add(player)
   }
 
   public userRestore(userId: string): UserRestore {
@@ -179,17 +186,17 @@ class Lobby extends Users implements Disposable {
     }
   }
 
-  private onUserEvent = (event: UserEvents.UserEvent) => {
-    switch(event.type) {
-      case 'user_connected':
-        this.userConnected(event.userId)
-        break
-      case 'user_disconnected':
-        const { userId, wasIntended } = event as UserEvents.UserDisconnectEvent
-        this.userDisconnected(userId, wasIntended)
-        break
-    }
-  }
+  // private onUserEvent = (event: UserEvents.UserEvent) => {
+  //   switch(event.type) {
+  //     case 'user_connected':
+  //       this.userConnected(event.userId)
+  //       break
+  //     case 'user_disconnected':
+  //       const { userId, wasIntended } = event as UserEvents.UserDisconnectEvent
+  //       this.userDisconnected(userId, wasIntended)
+  //       break
+  //   }
+  // }
 
 
   //
@@ -197,26 +204,26 @@ class Lobby extends Users implements Disposable {
   // =================
 
 
-  private userConnected(userId: string): void {
-    const user = this.get(userId)
-    user.connected = true
-  }
+  // private userConnected(userId: string): void {
+  //   const user = this.get(userId)
+  //   user.connected = true
+  // }
 
-  private userDisconnected(userId: string, intended: boolean): void {
-    const user = this.get(userId)
-    user.connected = false
+  // private userDisconnected(userId: string, intended: boolean): void {
+  //   const user = this.get(userId)
+  //   user.connected = false
 
-    if (intended) {
-      this.remove(userId)
+  //   if (intended) {
+  //     this.remove(userId)
 
-      // also remove player from the game if there is an instance
-      // don't need to worry about removing from the room because
-      // it just gets clearned when closed anyways
-      if (this._game && user instanceof Player) {
-        this._game.leave(userId)
-      }
-    }
-  }
+  //     // also remove player from the game if there is an instance
+  //     // don't need to worry about removing from the room because
+  //     // it just gets clearned when closed anyways
+  //     if (this._game && user instanceof Player) {
+  //       this._game.leave(userId)
+  //     }
+  //   }
+  // }
 }
 
 export default Lobby
