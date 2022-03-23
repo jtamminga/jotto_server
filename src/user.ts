@@ -6,15 +6,17 @@ abstract class User implements UserData {
   protected _username: string
   protected _type: UserType
   protected _host: boolean
+  protected _lobbyCode: string
 
   protected _connected: boolean
   protected _state: PlayerLobbyState
 
-  constructor({ userId, username, type, host }: UserData) {
+  constructor({ userId, username, type, host, lobbyCode }: UserData) {
     this._userId = userId
     this._username = username
     this._type = type
     this._host = host
+    this._lobbyCode = lobbyCode
 
     this._connected = true
     this._state = 'in_room'
@@ -50,12 +52,12 @@ abstract class User implements UserData {
     return this._host
   }
 
-  public set connected(value: boolean) {
-    this._connected = value
+  public get lobbyCode(): string {
+    return this._lobbyCode
   }
 
-  public set username(value: string) {
-    this._username = value
+  public set connected(value: boolean) {
+    this._connected = value
   }
 
 
@@ -74,7 +76,8 @@ abstract class User implements UserData {
       username: this._username,
       connected: this._connected,
       type: this._type,
-      host: this._host
+      host: this._host,
+      lobbyCode: this._lobbyCode
     }
   }
 

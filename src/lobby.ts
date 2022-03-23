@@ -2,7 +2,7 @@ import { UserRestore, GameConfig, GameSummary, HostConfig, IllegalStateError } f
 import { filter, Subscription } from 'rxjs'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
-import { GameEvents, isGameStateChangeEvent } from './events'
+import { GameEvents, LobbyEvents, PlayerEvents, UserEvents } from './events'
 import Game from './game'
 import Observer from './observer'
 import Player from './player'
@@ -23,22 +23,33 @@ class Lobby extends Users implements Disposable {
   private _game: Game | undefined = undefined
   private _room = new Room<Player>()
   private _state: LobbyState = 'inroom'
+  private _lastActivityOn: number = Date.now()
 
   constructor(
     private _code: string,
-    _bus?: EventBus
+    private _bus?: EventBus
   ) {
     super()
 
     this._subscriptions.push(_bus!.events$
-      .pipe(filter(isGameStateChangeEvent))
+      .pipe(filter(GameEvents.isStateChangeEvent))
       .subscribe(this.onGameStateChange)
     )
 
-    // this._subscriptions.push(_bus!.events$
-    //   .pipe(filter(isUserEvent))
-    //   .subscribe(this.onUserEvent)
-    // )
+    this._subscriptions.push(_bus!.events$
+      .pipe(
+        filter(UserEvents.isUserDisconnectEvent),
+        filter(e => this.all.some(u => u.userId === e.userId))
+      )
+      .subscribe(this.onUserDisconnect)
+    )
+
+    this._subscriptions.push(_bus!.events$
+      .pipe(
+        filter(PlayerEvents.isPlayerEvent)
+      )
+      .subscribe(this.onPlayerEvent)
+    )
   }
 
 
@@ -71,6 +82,10 @@ class Lobby extends Users implements Disposable {
     return this.all.filter(isObserver)
   }
 
+  public get lastActivityOn(): number {
+    return this._lastActivityOn
+  }
+
 
   //
   // public functions
@@ -98,8 +113,7 @@ class Lobby extends Users implements Disposable {
   public startGame(config: HostConfig) {
     this._game = new Game(config, this._room.all)
     this._room.close()
-    console.log('room closed')
-    this._state = 'ingame'
+    this.updateState('ingame')
 
     this.all
       .filter(u => u.type === 'player')
@@ -178,6 +192,7 @@ class Lobby extends Users implements Disposable {
       case GameState.gameOver:
         this.all.forEach(u => u.updateState('game_over'))
         this._room.open()
+        this.updateState('inroom')
         break
       case GameState.destroyed:
         this._game!.dispose()
@@ -186,17 +201,19 @@ class Lobby extends Users implements Disposable {
     }
   }
 
-  // private onUserEvent = (event: UserEvents.UserEvent) => {
-  //   switch(event.type) {
-  //     case 'user_connected':
-  //       this.userConnected(event.userId)
-  //       break
-  //     case 'user_disconnected':
-  //       const { userId, wasIntended } = event as UserEvents.UserDisconnectEvent
-  //       this.userDisconnected(userId, wasIntended)
-  //       break
-  //   }
-  // }
+  private onPlayerEvent = (event: PlayerEvents.PlayerEvent) => {
+    this._lastActivityOn = event.timestamp
+  }
+
+  private onUserDisconnect = (event: UserEvents.UserDisconnectEvent) => {
+    if (event.wasIntended) {
+      this.remove(event.userId)
+
+      if (this.all.length === 0) {
+        this._bus?.publish(LobbyEvents.create('lobby_empty', this))
+      }
+    }
+  }
 
 
   //
@@ -204,26 +221,14 @@ class Lobby extends Users implements Disposable {
   // =================
 
 
-  // private userConnected(userId: string): void {
-  //   const user = this.get(userId)
-  //   user.connected = true
-  // }
-
-  // private userDisconnected(userId: string, intended: boolean): void {
-  //   const user = this.get(userId)
-  //   user.connected = false
-
-  //   if (intended) {
-  //     this.remove(userId)
-
-  //     // also remove player from the game if there is an instance
-  //     // don't need to worry about removing from the room because
-  //     // it just gets clearned when closed anyways
-  //     if (this._game && user instanceof Player) {
-  //       this._game.leave(userId)
-  //     }
-  //   }
-  // }
+  private updateState(state: LobbyState) {
+    if (this._state !== state) {
+      this._state = state
+      this._lastActivityOn = Date.now()
+      this._bus?.publish(LobbyEvents.create('lobby_state_change', this))
+    }
+  }
+  
 }
 
 export default Lobby

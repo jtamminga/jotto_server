@@ -1,17 +1,19 @@
-import { Socket } from 'socket.io'
-import { ClientToServerEvents, ServerToClientEvents, SocketData, Session } from 'jotto_core'
+import { Server, Socket } from 'socket.io'
+import { ClientToServerEvents, ServerToClientEvents, SocketData, PlayerLobbyState, Session } from 'jotto_core'
 import { DefaultEventsMap } from 'socket.io/dist/typed-events'
 
+export type JottoServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
 export type JottoSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
 
 export type Seconds = number
 export type Minutes = number
 
 export interface SessionStore {
-  findSession(id: string): Session | undefined;
-  saveSession(id: string, session: Session): void;
-  allSessions(): Session[];
-  hasSession(id: string): boolean;
+  findSession(id: string): Session | undefined
+  saveSession(id: string, session: Session): void
+  allSessions(): Session[]
+  hasSession(id: string): boolean
+  removeSession(id: string): void
 }
 
 export interface GuessSubmission {
@@ -26,13 +28,6 @@ export interface Guess {
   common: number;
   won: boolean;
 }
-
-export type PlayerLobbyState =
-  | 'in_room'
-  | 'picking_word'
-  | 'picked_word'
-  | 'playing'
-  | 'game_over'
 
 export interface GameConfig {
   opponents: { id: string, opponentId: string }[]

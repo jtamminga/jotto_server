@@ -1,5 +1,5 @@
-import { UserData } from 'jotto_core';
-import Observer from './observer';
+import { UserData } from 'jotto_core'
+import Observer from './observer'
 import Player from './player'
 import User from './user'
 

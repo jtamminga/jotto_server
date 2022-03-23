@@ -4,7 +4,10 @@ import User from './user'
 export default class Observer extends User {
 
   public userState(): ObserverState {
-    return super.userState() as ObserverState
+    return {
+      ...super.userState(),
+      type: 'observer'
+    }
   }
 
 }

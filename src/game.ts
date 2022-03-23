@@ -1,6 +1,6 @@
 import Player from './player'
 import { shuffle } from './utils'
-import { GameEvents, isPlayerEvent, PlayerEvents } from './events'
+import { GameEvents, PlayerEvents } from './events'
 import { GameState, History } from './types'
 import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
@@ -42,7 +42,7 @@ class Game extends Players {
     }
 
     this._subscription = _bus!.events$
-      .pipe(filter(isPlayerEvent))
+      .pipe(filter(PlayerEvents.isPlayerEvent))
       .subscribe(event => this.onPlayerEvent(event))
   }
 

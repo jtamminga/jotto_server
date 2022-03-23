@@ -1,4 +1,4 @@
-import { Session } from 'jotto_core';
+import { Session } from 'jotto_core'
 import { SessionStore } from './types'
 
 class MemorySessionStore implements SessionStore {
@@ -22,6 +22,10 @@ class MemorySessionStore implements SessionStore {
 
   hasSession(id: string): boolean {
     return this.sessions.has(id);
+  }
+
+  removeSession(id: string): void {
+    this.sessions.delete(id)
   }
 }
 
