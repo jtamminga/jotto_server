@@ -28,4 +28,8 @@ export namespace LobbyEvents {
     return event.domain === 'lobby'
   }
 
+  export function isLobbyDestroyedEvent(event: Event): event is LobbyEvent {
+    return isLobbyEvent(event) && event.type === 'lobby_destroyed'
+  }
+
 }

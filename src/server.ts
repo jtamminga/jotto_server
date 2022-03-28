@@ -5,7 +5,7 @@ import MemorySessionStore from './memorySessionStore'
 import { Server } from 'socket.io'
 import { GameState, GuessSubmission, JottoSocket } from './types'
 import { filter } from 'rxjs'
-import { GameEvents, UserEvents } from './events'
+import { GameEvents, LobbyEvents, UserEvents } from './events'
 import { container } from 'tsyringe'
 import { EventBus } from './eventBus'
 import Lobby from './lobby'
@@ -27,6 +27,10 @@ const lobbyManager = container.resolve(LobbyManager)
 eventBus.events$
   .pipe(filter(GameEvents.isStateChangeEvent))
   .subscribe(onGameStateChange)
+
+eventBus.events$
+  .pipe(filter(LobbyEvents.isLobbyDestroyedEvent))
+  .subscribe(onLobbyDestroyed)
 
 // 
 const sessionStore = new MemorySessionStore()
@@ -259,7 +263,7 @@ function startGame(socket: JottoSocket, config: HostConfig) {
 
   console.group('game started'.cyan)
   console.log('in game:'.bold)
-  lobby.game.players.forEach((p, i) =>
+  lobby.game?.all.forEach((p, i) =>
     console.log(`${i+1}) ${p.username}`))
   console.groupEnd()
 }
@@ -342,12 +346,18 @@ function rejoinRoom(socket: JottoSocket) {
 }
 
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
+  const lobby = lobbyManager.all.find(lobby => lobby.game === event.game)
+
+  if (!lobby) {
+    throw new IllegalStateError('lobby does not exist')
+  }
+
   switch(event.game.state) {
     case GameState.playing:
-      io.emit('startPlaying', event.game.config())
+      io.sockets.in(lobby.code).emit('startPlaying', event.game.config())
 
       console.group('opponents'.cyan)
-      for(let player of event.game.players) {
+      for(let player of event.game.all) {
         console.log(
           player.username.bold + ' against '.gray + player.opponent.username.bold 
         )
@@ -357,12 +367,16 @@ function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
 
     case GameState.gameOver:
       console.log('game over'.cyan)
-      io.emit('endGameSummary', event.game.summary())
+      io.sockets.in(lobby.code).emit('endGameSummary', event.game.summary())
       break
 
     case GameState.destroyed:
       console.log('game destroyed'.cyan)
   }
+}
+
+function onLobbyDestroyed(event: LobbyEvents.LobbyEvent) {
+  io.sockets.in(event.lobby.code).disconnectSockets()
 }
 
 function getLobby(socket: JottoSocket): Lobby {

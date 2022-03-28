@@ -39,6 +39,10 @@ export default class Users<T extends User = User> {
     return this._users.find(p => p.userId === userId)
   }
 
+  public includes(user: T): boolean {
+    return this._users.includes(user)
+  }
+
 
   //
   // protected functions

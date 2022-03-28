@@ -24,6 +24,16 @@ export class LobbyManager {
       .subscribe(this.onLobbyEvent)
   }
 
+
+  //
+  // getters & setters
+  // =================
+
+
+  public get all(): Lobby[] {
+    return Array.from(this._lobbies.values())
+  }
+
   
   //
   // public functions
@@ -79,7 +89,7 @@ export class LobbyManager {
   private sweepLobbies() {
     let numPurged = 0
     for(let [_, lobby] of this._lobbies) {
-      if (this.lobbyAge(lobby) > 5) {
+      if (this.lobbyAge(lobby) > 1) {
         this.destroyLobby(lobby)
         numPurged++
       }

@@ -5,13 +5,13 @@ import { GameState, History } from './types'
 import { EventBus } from './eventBus'
 import { autoInjectable } from 'tsyringe'
 import { filter, Subscription } from 'rxjs'
-import Players from './players'
 import { AppConfig } from './config'
 import { comparePlayers, GameConfig, GameOverReason, GameSummary, HostConfig, IllegalStateError } from 'jotto_core'
 import { addMilliseconds, addMinutes, differenceInSeconds, formatDuration, intervalToDuration } from 'date-fns'
+import Users from './users'
 
 @autoInjectable()
-class Game extends Players {
+class Game extends Users<Player> {
 
   private _state: GameState = GameState.pickingWords
   private _subscription: Subscription
@@ -37,12 +37,15 @@ class Game extends Players {
 
     // then assign players to their opponent
     for (let i = 0; i < players.length; i++) {
-      this._players[i].setOpponent(
-        this._players[i + 1] ?? this._players[0])
+      this.all[i].setOpponent(
+        this.all[i + 1] ?? this.all[0])
     }
 
     this._subscription = _bus!.events$
-      .pipe(filter(PlayerEvents.isPlayerEvent))
+      .pipe(
+        filter(PlayerEvents.isPlayerEvent),
+        filter(e => this.includes(e.player))
+      )
       .subscribe(event => this.onPlayerEvent(event))
   }
 
@@ -61,7 +64,7 @@ class Game extends Players {
   }
 
   public get guesses(): History[] {
-    return this._players
+    return this.all
       .reduce<History[]>((guesses, player) =>
         guesses.concat(player.guesses.map(guess => ({
           ...guess,
@@ -81,7 +84,7 @@ class Game extends Players {
     return {
       preGameLength: this._config!.preGameLength,
       gameLength: this._hostConfig.gameLength,
-      opponents: this._players.map(player => ({
+      opponents: this.all.map(player => ({
         id: player.userId,
         opponentId: player.opponent.userId
       }))
@@ -97,7 +100,7 @@ class Game extends Players {
       throw new IllegalStateError('dates are not set properly')
     }
 
-    const playerSummaries = this._players
+    const playerSummaries = this.all
       .sort((a, b) => comparePlayers(a.perf, b.perf))
       .map((p, i) => ({
         userId: p.userId,
@@ -119,9 +122,9 @@ class Game extends Players {
   }
 
   public leave(userId: string): void {
-    this.removePlayer(userId)
+    this.remove(userId)
 
-    if (this._players.length === 0) {
+    if (this.all.length === 0) {
       this.updateState(GameState.destroyed)
     }
   }
@@ -177,7 +180,7 @@ class Game extends Players {
       throw new IllegalStateError(`Cannot set word in ${this._state} state`)
     }
 
-    if (this._players.every(p => p.hasWord)) {
+    if (this.all.every(p => p.hasWord)) {
       this.updateState(GameState.playing)
       this.processTimings()
     }
@@ -188,7 +191,7 @@ class Game extends Players {
       throw new IllegalStateError(`Cannot guess in ${this._state} state`)
     }
     
-    if (this._players.every(p => p.won)) {
+    if (this.all.every(p => p.won)) {
       this.gameOver('all_won')
     }
   }

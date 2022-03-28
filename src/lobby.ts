@@ -1,4 +1,4 @@
-import { UserRestore, GameConfig, GameSummary, HostConfig, IllegalStateError } from 'jotto_core'
+import { UserRestore, GameConfig, GameSummary, HostConfig } from 'jotto_core'
 import { filter, Subscription } from 'rxjs'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
@@ -32,7 +32,10 @@ class Lobby extends Users implements Disposable {
     super()
 
     this._subscriptions.push(_bus!.events$
-      .pipe(filter(GameEvents.isStateChangeEvent))
+      .pipe(
+        filter(GameEvents.isStateChangeEvent),
+        filter(e => e.game === this._game)
+      )
       .subscribe(this.onGameStateChange)
     )
 
@@ -46,7 +49,8 @@ class Lobby extends Users implements Disposable {
 
     this._subscriptions.push(_bus!.events$
       .pipe(
-        filter(PlayerEvents.isPlayerEvent)
+        filter(PlayerEvents.isPlayerEvent),
+        filter(e => this.includes(e.player))
       )
       .subscribe(this.onPlayerEvent)
     )
@@ -70,11 +74,7 @@ class Lobby extends Users implements Disposable {
     return this._state
   }
 
-  public get game(): Game {
-    if (!this._game) {
-      throw new IllegalStateError('No game currently')
-    }
-
+  public get game(): Game | undefined {
     return this._game
   }
 
@@ -176,6 +176,7 @@ class Lobby extends Users implements Disposable {
 
   public dispose() {
     this._subscriptions.forEach(s => s.unsubscribe())
+    this._game?.dispose()
   }
 
 
