@@ -126,8 +126,10 @@ engine.io@~6.1.0:
     engine.io-parser "~5.0.0"
     ws "~8.2.3"
 
-"jotto_core@file:../jotto_core":
-  version "1.26.0"
+jotto_core@^1.28.0:
+  version "1.28.0"
+  resolved "https://registry.yarnpkg.com/jotto_core/-/jotto_core-1.28.0.tgz#35fe7be5c2b7ceb16c2a2c1dc9f3d34a29eab93e"
+  integrity sha512-QIHZkhQM7QNj7qg2jRTSsuKnn3rKmNqb/VInWXi4T9aEk+ayiuYq1uWwCMnBVnGceVL/5wyc91oUPc9FvvQSRw==
 
 mime-db@1.51.0:
   version "1.51.0"
