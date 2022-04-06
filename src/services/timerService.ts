@@ -11,7 +11,7 @@ export class TimerService {
   ) { }
 
   public start() {
-    interval(1000 * 60)
+    interval(1000 * 60 * 10) // every 10 minutes
       .subscribe(() => {
         this._bus.publish(TimeEvents.create('tick'))
       })
