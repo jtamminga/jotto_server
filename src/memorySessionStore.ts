@@ -1,6 +1,8 @@
 import { Session } from 'jotto_core'
+import { singleton } from 'tsyringe';
 import { SessionStore } from './types'
 
+@singleton()
 class MemorySessionStore implements SessionStore {
   private sessions: Map<string, Session>;
 

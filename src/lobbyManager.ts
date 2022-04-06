@@ -89,7 +89,7 @@ export class LobbyManager {
   private sweepLobbies() {
     let numPurged = 0
     for(let [_, lobby] of this._lobbies) {
-      if (this.lobbyAge(lobby) > 1) {
+      if (this.lobbyAge(lobby) > 60) {
         this.destroyLobby(lobby)
         numPurged++
       }

@@ -1,9 +1,17 @@
 import { Server, Socket } from 'socket.io'
-import { ClientToServerEvents, ServerToClientEvents, SocketData, PlayerLobbyState, Session } from 'jotto_core'
+import {
+  ClientToServerEvents,
+  ServerToClientEvents,
+  SocketData,
+  PlayerLobbyState,
+  Session
+} from 'jotto_core'
 import { DefaultEventsMap } from 'socket.io/dist/typed-events'
+import { ExtendedError } from 'socket.io/dist/namespace'
 
 export type JottoServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
 export type JottoSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>
+export type NextFn = (err?: ExtendedError | undefined) => void
 
 export type Seconds = number
 export type Minutes = number

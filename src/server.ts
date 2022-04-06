@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 import 'colors'
-import { v4 as randomId } from 'uuid'
 import MemorySessionStore from './memorySessionStore'
 import { Server } from 'socket.io'
 import { GameState, GuessSubmission, JottoSocket } from './types'
@@ -15,14 +14,17 @@ import { createUser } from './utils'
 import { initializeInjections } from './di'
 import { TimerService } from './services'
 import { LobbyManager } from './lobbyManager'
+import { hostMiddleware, sessionMiddleware } from './middleware'
 
 
 initializeInjections()
 
-// event bus
+
 const eventBus = container.resolve(EventBus)
 const timerService = container.resolve(TimerService)
 const lobbyManager = container.resolve(LobbyManager)
+const sessionStore = container.resolve(MemorySessionStore)
+
 
 eventBus.events$
   .pipe(filter(GameEvents.isStateChangeEvent))
@@ -32,8 +34,11 @@ eventBus.events$
   .pipe(filter(LobbyEvents.isLobbyDestroyedEvent))
   .subscribe(onLobbyDestroyed)
 
-// 
-const sessionStore = new MemorySessionStore()
+
+//
+// initialize server
+// =================
+
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>({
   cors: {
@@ -46,54 +51,20 @@ timerService.start()
 io.listen(3001)
 console.log('server started'.cyan)
 
-// middleware
-io.use((socket, next) => {
-  const sessionId = socket.handshake.auth.sessionId
-  console.log( '[middleware]'.gray.bold, `sessionId: ${sessionId}`.gray)
-  
-  if (sessionId) {
-    const session = sessionStore.findSession(sessionId)
-    if (session) {
-      console.log( '[middleware]'.gray.bold, 'session found')
 
-      socket.data.sessionId = sessionId
-      socket.data.userId = session.userId
-      socket.data.lobbyCode = session.lobbyCode
+//
+// setup middleware
+// ================
 
-      // check lobby
-      const lobby = lobbyManager.find(session.lobbyCode)
-      if (!lobby) {
-        return next(new Error('lobby not found for this session'))
-      }
 
-      const user = lobby.find(session.userId)
-      if (!user) {
-        return next(new Error(`user not found in lobby ${lobby.code}`))
-      }
+io.use(sessionMiddleware)
+io.use(hostMiddleware)
 
-      return next()
-    }
-  }
 
-  const lobbyCode = socket.handshake.auth.lobbyCode
+//
+// on connection
+// =============
 
-  socket.data.sessionId = randomId()
-  socket.data.userId = randomId()
-  socket.data.lobbyCode = lobbyCode
-
-  if (lobbyCode === undefined) {
-    next()
-  } else {
-    const lobby = lobbyManager.find(lobbyCode)
-    if (lobby && lobby.room.isOpen) {
-      next()
-    } else {
-      console.log('lobby not available'.bgRed)
-      const error = new Error('lobby not available')
-      next(error)
-    }
-  }
-});
 
 io.on('connection', (socket) => {
   // setup listeners on connected socket
@@ -113,20 +84,28 @@ io.on('connection', (socket) => {
 
 });
 
+
+//
+// user connection
+// ===============
+
+
 /**
  * Handles a connected user
  * @param socket The connected socket
  * @returns All the current user sessions
  */
 function userConnect(socket: JottoSocket) {
-  let session = sessionStore.findSession(socket.data.sessionId!)
+  const session = sessionStore.findSession(socket.data.sessionId!)
 
-  console.group('user connected'.green);
-  console.log('username:  ', socket.data.username);
-  console.log('sessionId: ', socket.data.sessionId);
-  console.log('userId:    ', socket.data.userId);
-  console.log('type:      ', socket.data.type);
-  console.log('reconnect: ', !!session);
+  console.group('user connected'.green)
+  console.log('socketid:  ', socket.id)
+  console.log('username:  ', socket.data.username)
+  console.log('sessionId: ', socket.data.sessionId)
+  console.log('userId:    ', socket.data.userId)
+  console.log('host:      ', socket.data.host)
+  console.log('type:      ', socket.data.type)
+  console.log('reconnect: ', !!session)
   console.groupEnd();
 
   if (session) {
@@ -141,24 +120,7 @@ function userConnect(socket: JottoSocket) {
  * @param socket The socket that connected
  */
 function newUserConnect(socket: JottoSocket) {
-  const userLobbyCode = socket.data.lobbyCode
-  let lobby: Lobby
-
-  if (userLobbyCode) {
-    const l = lobbyManager.find(userLobbyCode)
-    if (!l) {
-      throw new IllegalStateError('lobby not found')
-    }
-    console.log(`lobby ${l.code} found`)
-
-    lobby = l
-    socket.data.host = false
-  } else {
-    lobby = lobbyManager.create()
-    socket.data.host = true
-    socket.data.lobbyCode = lobby.code
-    console.log(`lobby ${lobby.code} created`)
-  }
+  const lobby = getLobby(socket)
 
   // send session details to connected user
   socket.emit('session', {
@@ -173,10 +135,8 @@ function newUserConnect(socket: JottoSocket) {
   }
 
   sessionStore.saveSession(socket.data.sessionId!, session)
-
-  eventBus.publish(UserEvents.userConnected(socket.data.userId!, false))
-
   socket.join(lobby.code)
+  eventBus.publish(UserEvents.userConnected(socket.data.userId!, false))
 }
 
 /**
@@ -188,7 +148,8 @@ function userReconnect(socket: JottoSocket, session: Session) {
   const lobby = getLobby(socket)
   const user = lobby.get(socket.data.userId!)
 
-  socket.broadcast.emit('userConnect', user.userState())
+  socket.join(lobby.code)
+  socket.to(lobby.code).emit('userConnect', user.userState())
   socket.emit('restore', lobby.userRestore(session.userId))
   eventBus.publish(UserEvents.userConnected(session.userId, true))
 }
@@ -201,14 +162,19 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   const intended = reason === 'client namespace disconnect'
 
   console.group('user disconnected'.red);
+  console.log('socketid: ', socket.id)
   console.log('username: ', socket.data.username);
   console.log('sessionId:', socket.data.sessionId);
   console.log('userId:   ', socket.data.userId);
   console.log('intended: ', intended);
   console.groupEnd();
 
-  // notify other users
-  socket.broadcast.emit('userDisconnect', socket.data.userId!, intended)
+  // notify others in lobby
+  // maybe use should always be in lobby so check isn't needed
+  const lobby = lobbyManager.find(socket.data.lobbyCode!)
+  if (lobby) {
+    socket.to(lobby.code).emit('userDisconnect', socket.data.userId!, intended)
+  }
 
   eventBus.publish(UserEvents.userDisconnected(socket.data.userId!, intended))
 
@@ -216,6 +182,12 @@ function userDisconnect(socket: JottoSocket, reason: string) {
     sessionStore.removeSession(socket.data.sessionId!)
   }
 }
+
+
+//
+// socket events
+// =============
+
 
 function joinRoom(socket: JottoSocket, username: string, type: UserType) {
   const lobby = getLobby(socket)
@@ -239,7 +211,7 @@ function joinRoom(socket: JottoSocket, username: string, type: UserType) {
   console.groupEnd();
 
   // broadcast to all others that a user connected
-  socket.broadcast.to(lobby.code).emit('userConnect', user.userState())
+  socket.to(lobby.code).emit('userConnect', user.userState())
 
   // send all connected users including the user just connected
   // to just the connected user
@@ -345,6 +317,12 @@ function rejoinRoom(socket: JottoSocket) {
   socket.emit('users', [...users, ...observers])
 }
 
+
+//
+// bus handlers
+// ============
+
+
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
   const lobby = lobbyManager.all.find(lobby => lobby.game === event.game)
 
@@ -383,7 +361,7 @@ function getLobby(socket: JottoSocket): Lobby {
   const lobby = lobbyManager.find(socket.data.lobbyCode!)
 
   if (!lobby) {
-    throw new IllegalStateError('user does not belong to lobby')
+    throw new IllegalStateError(`user does not belong to lobby`)
   }
 
   return lobby
