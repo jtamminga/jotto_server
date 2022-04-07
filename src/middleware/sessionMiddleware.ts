@@ -21,7 +21,7 @@ export function sessionMiddleware(socket: JottoSocket, next: NextFn): void {
 
     // make sure session exists
     if (!session) {
-      log.error('session not found')
+      log.error(`session ${sessionId} not found`)
       return next(new Error('session not found'))
     }
 

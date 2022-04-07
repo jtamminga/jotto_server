@@ -19,6 +19,7 @@ class Game extends Users<Player> {
   private _endedOn: Date | undefined
   private _reason: GameOverReason | undefined
   private _summary: GameSummary | undefined
+  private _timer: ReturnType<typeof setTimeout> | undefined
 
   constructor(
     private _hostConfig: HostConfig,
@@ -131,6 +132,10 @@ class Game extends Users<Player> {
 
   public dispose() {
     this._subscription.unsubscribe()
+
+    if (this._timer) {
+      clearTimeout(this._timer)
+    }
   }
 
 
@@ -160,7 +165,7 @@ class Game extends Users<Player> {
       const total = preGameLength + gameLength
 
       // set game timer
-      setTimeout(() => this.gameOver('time_up'), total)
+      this._timer = setTimeout(() => this.gameOver('time_up'), total)
     }
   }
 
@@ -199,6 +204,17 @@ class Game extends Users<Player> {
   private gameOver(reason: GameOverReason) {
     if (this._startedOn === undefined) {
       throw new IllegalStateError('game does not have start time')
+    }
+
+    if (this._state !== GameState.playing) {
+      throw new IllegalStateError('game is not in playing state')
+    }
+
+    // clear the timer
+    // in the case of game ending before the timer because all one
+    // make sure to clear the timer
+    if (this._timer) {
+      clearTimeout(this._timer)
     }
 
     const actualDuration = intervalToDuration({
