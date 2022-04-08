@@ -208,9 +208,10 @@ class Lobby extends Users implements Disposable {
 
   private onUserDisconnect = (event: UserEvents.UserDisconnectEvent) => {
     if (event.wasIntended) {
-      this.remove(event.userId)
+      const user = this.get(event.userId)
+      user.leftGame()
 
-      if (this.all.length === 0) {
+      if (this.all.every(user => user.didLeave)) {
         this._bus?.publish(LobbyEvents.create('lobby_empty', this))
       }
     }

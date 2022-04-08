@@ -79,6 +79,7 @@ export class LobbyManager {
     lobby.dispose()
     this._lobbies.delete(lobby.code)
     this._bus.publish(LobbyEvents.create('lobby_destroyed', lobby))
+    console.log(`lobby ${lobby.code} has been destroyed`)
   }
 
   private healthCheck() {

@@ -9,6 +9,7 @@ abstract class User implements UserData {
   protected _lobbyCode: string
 
   protected _connected: boolean
+  protected _leftGame: boolean
   protected _state: PlayerLobbyState
 
   constructor({ userId, username, type, host, lobbyCode }: UserData) {
@@ -19,6 +20,7 @@ abstract class User implements UserData {
     this._lobbyCode = lobbyCode
 
     this._connected = true
+    this._leftGame = false
     this._state = 'in_room'
   }
 
@@ -42,6 +44,10 @@ abstract class User implements UserData {
 
   public get connected(): boolean {
     return this._connected
+  }
+
+  public get didLeave(): boolean {
+    return this._leftGame
   }
 
   public get type(): UserType {
@@ -79,6 +85,10 @@ abstract class User implements UserData {
       host: this._host,
       lobbyCode: this._lobbyCode
     }
+  }
+
+  public leftGame() {
+    this._leftGame = true
   }
 
 }
