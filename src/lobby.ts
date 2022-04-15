@@ -110,7 +110,7 @@ class Lobby extends Users implements Disposable {
     throw new Error('User is not a player')
   }
 
-  public startGame(config: HostConfig) {
+  public startGame(config: HostConfig): Game {
     this._game = new Game(config, this._room.all)
     this._room.close()
     this.updateState('ingame')
@@ -122,6 +122,8 @@ class Lobby extends Users implements Disposable {
     this.all
       .filter(u => u.type === 'observer')
       .forEach(u => u.updateState('picked_word'))
+
+    return this._game
   }
 
   public goBackToRoom(userId: string) {
@@ -210,6 +212,10 @@ class Lobby extends Users implements Disposable {
     if (event.wasIntended) {
       const user = this.get(event.userId)
       user.leftGame()
+
+      if (this.room.isOpen && user instanceof Player) {
+        this.room.leave(user)
+      }
 
       if (this.all.every(user => user.didLeave)) {
         this._bus?.publish(LobbyEvents.create('lobby_empty', this))

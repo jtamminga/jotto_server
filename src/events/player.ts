@@ -9,9 +9,9 @@ export namespace PlayerEvents {
     | 'submit_guess'
 
   export interface PlayerEvent extends Event {
-    domain: 'player';
-    type: EventType;
-    player: Player;
+    domain: 'player'
+    type: EventType
+    player: Player
   }
 
   export interface GuessEvent extends PlayerEvent {
@@ -19,16 +19,24 @@ export namespace PlayerEvents {
     guess: Guess
   }
 
-  export function setWord(player: Player): PlayerEvent {
+  export interface SetWordEvent extends PlayerEvent {
+    type: 'set_word'
+    word: string
+    assigned: boolean
+  }
+
+  export function setWord(player: Player, word: string, assigned: boolean = false): SetWordEvent {
     return {
       domain: 'player',
       type: 'set_word',
       timestamp: Date.now(),
-      player
+      player,
+      word,
+      assigned
     }
   }
 
-  export function submitGuess(player: Player, guess: Guess ): GuessEvent {
+  export function submitGuess(player: Player, guess: Guess): GuessEvent {
     return {
       domain: 'player',
       type: 'submit_guess',
@@ -40,5 +48,9 @@ export namespace PlayerEvents {
 
   export function isPlayerEvent(event: Event): event is PlayerEvents.PlayerEvent {
     return event.domain == 'player'
+  }
+
+  export function isSetWordEvent(event: Event): event is PlayerEvents.SetWordEvent {
+    return isPlayerEvent(event) && event.type === 'set_word'
   }
 }

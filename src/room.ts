@@ -42,6 +42,10 @@ export default class Room<T extends User> extends Users<T> {
     super.add(user)
   }
 
+  public leave(user: T) {
+    super.remove(user.userId)
+  }
+
   public close() {
     this._isOpen = false
     this.clear()

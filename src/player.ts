@@ -95,15 +95,21 @@ export default class Player extends User {
     return guess
   }
 
-  public setWord(word: string) {
+  public setWord(word: string, assigned: boolean = false) {
     if (word.length !== 5 || duplicates([...word]).length !== 0) {
       throw new Error('Word is not valid')
     }
     
     this._word = word
     this.updateState('picked_word')
-    this._bus?.publish(PlayerEvents.setWord(this))
-  } 
+    this._bus?.publish(PlayerEvents.setWord(this, word, assigned))
+  }
+
+  public setRandomWord() {
+    const words = ['under', 'water', 'extra', 'vesta', 'spoty']
+    const word = words[Math.floor(Math.random()*words.length)]
+    this.setWord(word, true)
+  }
 
   public setOpponent(player: Player) {
     this._opponent = player

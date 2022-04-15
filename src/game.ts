@@ -19,7 +19,8 @@ class Game extends Users<Player> {
   private _endedOn: Date | undefined
   private _reason: GameOverReason | undefined
   private _summary: GameSummary | undefined
-  private _timer: ReturnType<typeof setTimeout> | undefined
+  private _pickWordTimer: ReturnType<typeof setTimeout>
+  private _gameOverTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(
     private _hostConfig: HostConfig,
@@ -42,6 +43,11 @@ class Game extends Users<Player> {
         this.all[i + 1] ?? this.all[0])
     }
 
+    // setup timer for picking a word
+    this._pickWordTimer = setTimeout(() => this.onPickWordTimeUp(),
+      _config!.pickWordLength * 1_000)
+
+    // listen to player events
     this._subscription = _bus!.events$
       .pipe(
         filter(PlayerEvents.isPlayerEvent),
@@ -83,6 +89,7 @@ class Game extends Users<Player> {
 
   public config(): GameConfig {
     return {
+      pickWordLength: this._config!.pickWordLength,
       preGameLength: this._config!.preGameLength,
       gameLength: this._hostConfig.gameLength,
       opponents: this.all.map(player => ({
@@ -133,8 +140,10 @@ class Game extends Users<Player> {
   public dispose() {
     this._subscription.unsubscribe()
 
-    if (this._timer) {
-      clearTimeout(this._timer)
+    clearTimeout(this._pickWordTimer)
+
+    if (this._gameOverTimer) {
+      clearTimeout(this._gameOverTimer)
     }
   }
 
@@ -165,7 +174,7 @@ class Game extends Users<Player> {
       const total = preGameLength + gameLength
 
       // set game timer
-      this._timer = setTimeout(() => this.gameOver('time_up'), total)
+      this._gameOverTimer = setTimeout(() => this.gameOver('time_up'), total)
     }
   }
 
@@ -180,12 +189,24 @@ class Game extends Users<Player> {
     }
   }
 
+  private onPickWordTimeUp() {
+    // give random words to players that have not
+    // picked a word yet
+    this.all
+      .filter(p => !p.hasWord)
+      .forEach(p => p.setRandomWord())
+
+    this.updateState(GameState.playing)
+    this.processTimings()
+  }
+
   private onSetWord() {
     if (this._state !== GameState.pickingWords) {
       throw new IllegalStateError(`Cannot set word in ${this._state} state`)
     }
 
     if (this.all.every(p => p.hasWord)) {
+      clearTimeout(this._pickWordTimer)
       this.updateState(GameState.playing)
       this.processTimings()
     }
@@ -213,8 +234,8 @@ class Game extends Users<Player> {
     // clear the timer
     // in the case of game ending before the timer because all one
     // make sure to clear the timer
-    if (this._timer) {
-      clearTimeout(this._timer)
+    if (this._gameOverTimer) {
+      clearTimeout(this._gameOverTimer)
     }
 
     const actualDuration = intervalToDuration({

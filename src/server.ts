@@ -4,7 +4,7 @@ import MemorySessionStore from './memorySessionStore'
 import { Server } from 'socket.io'
 import { GameState, GuessSubmission, JottoSocket } from './types'
 import { filter } from 'rxjs'
-import { GameEvents, LobbyEvents, UserEvents } from './events'
+import { GameEvents, LobbyEvents, PlayerEvents, UserEvents } from './events'
 import { container } from 'tsyringe'
 import { EventBus } from './eventBus'
 import Lobby from './lobby'
@@ -33,6 +33,13 @@ eventBus.events$
 eventBus.events$
   .pipe(filter(LobbyEvents.isLobbyDestroyedEvent))
   .subscribe(onLobbyDestroyed)
+
+eventBus.events$
+  .pipe(
+    filter(PlayerEvents.isSetWordEvent),
+    filter(e => e.assigned)
+  )
+  .subscribe(onAssignedWord)
 
 
 //
@@ -147,6 +154,7 @@ function newUserConnect(socket: JottoSocket) {
 function userReconnect(socket: JottoSocket, session: Session) {
   const lobby = getLobby(socket)
   const user = lobby.get(socket.data.userId!)
+  user.connected = true
 
   socket.join(lobby.code)
   socket.to(lobby.code).emit('userConnect', user.userState())
@@ -173,6 +181,7 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   // maybe use should always be in lobby so check isn't needed
   const lobby = lobbyManager.find(socket.data.lobbyCode!)
   if (lobby) {
+    lobby.get(socket.data.userId!).connected = false
     socket.to(lobby.code).emit('userDisconnect', socket.data.userId!, intended)
   }
 
@@ -227,15 +236,16 @@ function joinRoom(socket: JottoSocket, username: string, type: UserType) {
 /**
  * Start the game
  */
-function startGame(socket: JottoSocket, config: HostConfig) {
+function startGame(socket: JottoSocket, hostConfig: HostConfig) {
   const lobby = getLobby(socket)
 
-  lobby.startGame(config)
-  io.to(lobby.code).emit('wordPicking')
+  const game = lobby.startGame(hostConfig)
+  io.to(lobby.code).emit('wordPicking', game.config())
 
+  // log who is all in the game
   console.group('game started'.cyan)
   console.log('in game:'.bold)
-  lobby.game?.all.forEach((p, i) =>
+  game.all.forEach((p, i) =>
     console.log(`${i+1}) ${p.username}`))
   console.groupEnd()
 }
@@ -255,7 +265,7 @@ function submitWord(socket: JottoSocket, word: string) {
   console.groupEnd();
 
   player.setWord(word)
-  socket.broadcast.emit('userReady', socket.data.userId!);
+  socket.to(lobby.code).emit('userReady', socket.data.userId!)
 }
 
 /**
@@ -323,6 +333,22 @@ function rejoinRoom(socket: JottoSocket) {
 // ============
 
 
+function onAssignedWord(event: PlayerEvents.SetWordEvent) {
+  for (let [_, socket] of io.sockets.sockets) {
+    if (socket.data.userId === event.player.userId) {
+      const lobby = getLobby(socket)
+      socket.emit('assignedWord', event.word)
+      socket.to(lobby.code).emit('userReady', event.player.userId)
+
+      console.group('word assigned'.magenta);
+      console.log('user: ', event.player.username);
+      console.log('word: ', event.word.bold);
+      console.groupEnd();
+      break
+    }
+  }
+}
+
 function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
   const lobby = lobbyManager.all.find(lobby => lobby.game === event.game)
 
@@ -332,7 +358,7 @@ function onGameStateChange(event: GameEvents.GameStateChangeEvent) {
 
   switch(event.game.state) {
     case GameState.playing:
-      io.sockets.in(lobby.code).emit('startPlaying', event.game.config())
+      io.sockets.in(lobby.code).emit('startPlaying')
 
       console.group('opponents'.cyan)
       for(let player of event.game.all) {
