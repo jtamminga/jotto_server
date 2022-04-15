@@ -210,10 +210,19 @@ class Lobby extends Users implements Disposable {
 
   private onUserDisconnect = (event: UserEvents.UserDisconnectEvent) => {
     if (event.wasIntended) {
+      // first mark a user as left
+      // this allows restores mid game with a user that left
       const user = this.get(event.userId)
-      user.leftGame()
+      user.leftLobby()
 
-      if (this.room.isOpen && user instanceof Player) {
+      // if a game is not going on then actually remove from the lobby
+      if (this._state === 'inroom') {
+        this.remove(event.userId)
+      }
+
+      // if a user leaves while in a room
+      // remove from the room too
+      if (user instanceof Player && this.room.includes(user) ) {
         this.room.leave(user)
       }
 

@@ -178,11 +178,15 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   console.groupEnd();
 
   // notify others in lobby
-  // maybe use should always be in lobby so check isn't needed
   const lobby = lobbyManager.find(socket.data.lobbyCode!)
   if (lobby) {
-    lobby.get(socket.data.userId!).connected = false
-    socket.to(lobby.code).emit('userDisconnect', socket.data.userId!, intended)
+    const user = lobby.find(socket.data.userId!)
+    // the user could not exist in a lobby if a user joined a lobby
+    // but disconnected before putting in a name
+    if (user) {
+      user.connected = false
+      socket.to(lobby.code).emit('userDisconnect', socket.data.userId!, intended)
+    }
   }
 
   eventBus.publish(UserEvents.userDisconnected(socket.data.userId!, intended))
@@ -226,7 +230,7 @@ function joinRoom(socket: JottoSocket, username: string, type: UserType) {
   // to just the connected user
   // this allows the connected user to see any users that 
   // connected before
-  const userStates = lobby.connected
+  const userStates = lobby.all
     .map(p => p.userState())
 
   // send all connected users to the connected user

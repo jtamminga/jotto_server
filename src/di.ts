@@ -5,7 +5,7 @@ import { AppConfig } from './config'
 export function initializeInjections() {
 
   const config = new AppConfig({
-    pickWordLength: 20, // seconds
+    pickWordLength: 60, // seconds
     preGameLength: 10 // seconds
   })
 
