@@ -83,7 +83,7 @@ export class LobbyManager {
   }
 
   private healthCheck() {
-    this.logHealth()
+    // this.logHealth()
     this.sweepLobbies()
   }
 
@@ -96,20 +96,20 @@ export class LobbyManager {
       }
     }
 
-    console.log('lobbies purged:', numPurged)
+    console.info(`${numPurged} out of ${this._lobbies.size} purged`)
   }
 
-  private logHealth() {
-    console.group('lobby health check'.gray.bold)
-    console.log('num lobbies:', this._lobbies.size)
-    for(let [code, lobby] of this._lobbies) {
-      console.group(`lobby ${code}`)
-      console.log('users:', lobby.all.map(u => u.username))
-      console.log('min inactive:', this.lobbyAge(lobby))
-      console.groupEnd()
-    }
-    console.groupEnd()
-  }
+  // private logHealth() {
+  //   console.group('lobby health check'.gray.bold)
+  //   console.log('num lobbies:', this._lobbies.size)
+  //   for(let [code, lobby] of this._lobbies) {
+  //     console.group(`lobby ${code}`)
+  //     console.log('users:', lobby.all.map(u => u.username))
+  //     console.log('min inactive:', this.lobbyAge(lobby))
+  //     console.groupEnd()
+  //   }
+  //   console.groupEnd()
+  // }
 
   private lobbyAge(lobby: Lobby): Minutes {
     return differenceInMinutes(Date.now(), lobby.lastActivityOn)

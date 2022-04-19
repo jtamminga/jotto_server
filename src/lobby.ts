@@ -9,28 +9,26 @@ import Player from './player'
 import Room from './room'
 import { Disposable, GameState, History } from './types'
 import User from './user'
-import Users from './users'
-import { isObserver } from './utils'
 
 export type LobbyState =
   | 'inroom'
   | 'ingame'
 
 @autoInjectable()
-class Lobby extends Users implements Disposable {
+class Lobby implements Disposable {
 
-  private _subscriptions: Subscription[] = []
-  private _game: Game | undefined = undefined
   private _room = new Room<Player>()
+  private _game: Game | undefined = undefined
+  
   private _state: LobbyState = 'inroom'
+  private _observers: Observer[] = []
+  private _subscriptions: Subscription[] = []
   private _lastActivityOn: number = Date.now()
 
   constructor(
     private _code: string,
     private _bus?: EventBus
   ) {
-    super()
-
     this._subscriptions.push(_bus!.events$
       .pipe(
         filter(GameEvents.isStateChangeEvent),
@@ -40,17 +38,14 @@ class Lobby extends Users implements Disposable {
     )
 
     this._subscriptions.push(_bus!.events$
-      .pipe(
-        filter(UserEvents.isUserDisconnectEvent),
-        filter(e => this.all.some(u => u.userId === e.userId))
-      )
+      .pipe(filter(UserEvents.isUserDisconnectEvent))
       .subscribe(this.onUserDisconnect)
     )
 
     this._subscriptions.push(_bus!.events$
       .pipe(
         filter(PlayerEvents.isPlayerEvent),
-        filter(e => this.includes(e.player))
+        filter(e => this._game?.includes(e.player) ?? false)
       )
       .subscribe(this.onPlayerEvent)
     )
@@ -78,8 +73,20 @@ class Lobby extends Users implements Disposable {
     return this._game
   }
 
+  // public get all(): User[] {
+  //   let users: User[]
+
+  //   if (this._state === 'ingame') {
+  //     users = this._game?.all ?? []
+  //   } else {
+  //     users = this._room.all
+  //   }
+    
+  //   return users.concat(this._observers)
+  // }
+
   public get observers(): Observer[] {
-    return this.all.filter(isObserver)
+    return this._observers
   }
 
   public get lastActivityOn(): number {
@@ -95,19 +102,54 @@ class Lobby extends Users implements Disposable {
   public add(user: User): void {
     if (user instanceof Player) {
       this._room.add(user)
+    } else if (user instanceof Observer) {
+      this._observers.push(user)
+    } else {
+      throw new Error('unknown error type')
+    }
+  }
+
+  public findUser(userId: string): User | undefined {
+    return this._room.find(userId)
+      || this._game?.find(userId)
+      || this._observers.find(o => o.userId === userId)
+  }
+
+  public getUser(userId: string): User {
+    const user = this.findUser(userId)
+
+    if (!user) {
+      throw new Error('user does not exist')
     }
 
-    super.add(user)
+    return user
+  }
+
+  public getUsersFor(user: User): User[] {
+    let users: User[]
+
+    switch (user.state) {
+      case 'in_room':
+        users = this._room.all
+        break
+      case 'picking_word':
+      case 'picked_word':
+      case 'playing':
+      case 'game_over':
+        users = this._game?.all ?? []
+    }
+    
+    return users.concat(this._observers)
   }
 
   public getPlayer(userId: string): Player {
-    const user: User = this.get(userId)
+    const user = this.getUser(userId) // could just get from game
 
     if (user instanceof Player) {
       return user
     }
 
-    throw new Error('User is not a player')
+    throw new Error('user is not a player')
   }
 
   public startGame(config: HostConfig): Game {
@@ -115,12 +157,10 @@ class Lobby extends Users implements Disposable {
     this._room.close()
     this.updateState('ingame')
 
-    this.all
-      .filter(u => u.type === 'player')
+    this._game.all
       .forEach(u => u.updateState('picking_word'))
 
-    this.all
-      .filter(u => u.type === 'observer')
+    this._observers
       .forEach(u => u.updateState('picked_word'))
 
     return this._game
@@ -134,7 +174,7 @@ class Lobby extends Users implements Disposable {
   }
 
   public userRestore(userId: string): UserRestore {
-    const user = this.get(userId)
+    const user = this.getUser(userId)
     let { state } = user
 
     // handle observer refreshing after game gets destroyed
@@ -144,24 +184,27 @@ class Lobby extends Users implements Disposable {
       state = 'in_room'
     }
 
-    const users = this.all
+    const users = this.getUsersFor(user)
       .map(u => u.userState())
 
     let word: string | undefined
     let gameSummary: GameSummary | undefined
     let config: GameConfig | undefined
     let history: History[] | undefined
+    let pickingWordOn: number | undefined
     let startedOn: number | undefined
 
     switch (state) {
       case 'game_over':
         gameSummary = this._game!.summary()
       case 'playing':
-        config = this._game!.config()
         history = this._game!.guesses
         startedOn = this._game!.startedOn?.getTime()
       case 'picked_word':
         if (user instanceof Player) word = user.word
+      case 'picking_word':
+        config = this._game!.config()
+        pickingWordOn = this._game!.pickingWordOn.getTime()
     }
 
     return {
@@ -169,6 +212,7 @@ class Lobby extends Users implements Disposable {
       users,
       state,
       history,
+      pickingWordOn,
       startedOn,
       word,
       config,
@@ -190,10 +234,12 @@ class Lobby extends Users implements Disposable {
   private onGameStateChange = (event: GameEvents.GameStateChangeEvent) => {
     switch (event.state) {
       case GameState.playing:
-        this.all.forEach(u => u.updateState('playing'))
+        this._game?.all.forEach(u => u.updateState('playing'))
+        this._observers.forEach(o => o.updateState('playing'))
         break
       case GameState.gameOver:
-        this.all.forEach(u => u.updateState('game_over'))
+        this._game?.all.forEach(u => u.updateState('game_over'))
+        this._observers.forEach(o => o.updateState('game_over'))
         this._room.open()
         this.updateState('inroom')
         break
@@ -209,16 +255,20 @@ class Lobby extends Users implements Disposable {
   }
 
   private onUserDisconnect = (event: UserEvents.UserDisconnectEvent) => {
+    const user = this.findUser(event.userId)
+    if (!user) {
+      return
+    }
+
     if (event.wasIntended) {
       // first mark a user as left
       // this allows restores mid game with a user that left
-      const user = this.get(event.userId)
       user.leftLobby()
 
       // if a game is not going on then actually remove from the lobby
-      if (this._state === 'inroom') {
-        this.remove(event.userId)
-      }
+      // if (this._state === 'inroom') {
+      //   this.remove(event.userId)
+      // }
 
       // if a user leaves while in a room
       // remove from the room too
@@ -226,7 +276,7 @@ class Lobby extends Users implements Disposable {
         this.room.leave(user)
       }
 
-      if (this.all.every(user => user.didLeave)) {
+      if ([...this.room.all, ...(this.game?.all ?? [])].every(user => user.didLeave)) {
         this._bus?.publish(LobbyEvents.create('lobby_empty', this))
       }
     }

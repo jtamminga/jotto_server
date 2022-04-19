@@ -15,6 +15,7 @@ class Game extends Users<Player> {
 
   private _state: GameState = GameState.pickingWords
   private _subscription: Subscription
+  private _pickingWordOn: Date
   private _startedOn: Date | undefined
   private _endedOn: Date | undefined
   private _reason: GameOverReason | undefined
@@ -43,6 +44,8 @@ class Game extends Users<Player> {
         this.all[i + 1] ?? this.all[0])
     }
 
+    this._pickingWordOn = new Date()
+
     // setup timer for picking a word
     this._pickWordTimer = setTimeout(() => this.onPickWordTimeUp(),
       _config!.pickWordLength * 1_000)
@@ -64,6 +67,10 @@ class Game extends Users<Player> {
 
   public get state(): GameState {
     return this._state
+  }
+
+  public get pickingWordOn(): Date {
+    return this._pickingWordOn
   }
 
   public get startedOn(): Date | undefined {

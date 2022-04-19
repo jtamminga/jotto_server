@@ -14,6 +14,10 @@ export default class Users<T extends User = User> {
     return this._users
   }
 
+  // public get committed(): T[] {
+  //   return this._users.filter(u => !u.didLeave)
+  // }
+
   public get connected(): T[] {
     return this._users.filter(u => u.connected)
   }
@@ -61,6 +65,12 @@ export default class Users<T extends User = User> {
     }
 
     this._users.splice(index, 1)
+  }
+
+  protected purge(): void {
+    const num = this._users.length
+    this._users = this._users.filter(u => !u.didLeave)
+    console.log(`purged ${num - this._users.length} users`.bgRed)
   }
 
   protected clear(): void {

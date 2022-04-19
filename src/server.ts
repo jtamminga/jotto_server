@@ -153,7 +153,7 @@ function newUserConnect(socket: JottoSocket) {
  */
 function userReconnect(socket: JottoSocket, session: Session) {
   const lobby = getLobby(socket)
-  const user = lobby.get(socket.data.userId!)
+  const user = lobby.getUser(socket.data.userId!)
   user.connected = true
 
   socket.join(lobby.code)
@@ -180,7 +180,7 @@ function userDisconnect(socket: JottoSocket, reason: string) {
   // notify others in lobby
   const lobby = lobbyManager.find(socket.data.lobbyCode!)
   if (lobby) {
-    const user = lobby.find(socket.data.userId!)
+    const user = lobby.findUser(socket.data.userId!)
     // the user could not exist in a lobby if a user joined a lobby
     // but disconnected before putting in a name
     if (user) {
@@ -230,7 +230,7 @@ function joinRoom(socket: JottoSocket, username: string, type: UserType) {
   // to just the connected user
   // this allows the connected user to see any users that 
   // connected before
-  const userStates = lobby.all
+  const userStates = lobby.getUsersFor(user)
     .map(p => p.userState())
 
   // send all connected users to the connected user
@@ -320,15 +320,11 @@ function rejoinRoom(socket: JottoSocket) {
 
   // resend users when rejoining so user knows 
   // who is in the room already
-  const users = lobby.room.all
-    .map(player => player.userState())
-
-  // also send over all observers
-  const observers = lobby.observers
-    .map(observer => observer.userState())
+  const users = lobby.getUsersFor(player)
+    .map(user => user.userState())
 
   // send to user all connected users
-  socket.emit('users', [...users, ...observers])
+  socket.emit('users', users)
 }
 
 

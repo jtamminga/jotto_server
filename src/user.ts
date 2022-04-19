@@ -73,6 +73,7 @@ abstract class User implements UserData {
 
 
   public updateState(state: PlayerLobbyState) {
+    console.log('[user]'.gray + ' ' + this._username + ':', state)
     this._state = state
   }
 

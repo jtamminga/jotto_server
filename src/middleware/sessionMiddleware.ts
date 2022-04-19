@@ -33,7 +33,7 @@ export function sessionMiddleware(socket: JottoSocket, next: NextFn): void {
     }
 
     // make sure the user exists in that lobby
-    const user = lobby.find(session.userId)
+    const user = lobby.findUser(session.userId)
     if (!user) {
       log.error(`user not found in lobby ${lobby.code}`)
       return next(new Error(`user not found in lobby ${lobby.code}`))

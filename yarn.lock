@@ -122,9 +122,9 @@ engine.io@~6.1.0:
     ws "~8.2.3"
 
 jotto_core@^1.28.0:
-  version "1.30.0"
-  resolved "https://registry.yarnpkg.com/jotto_core/-/jotto_core-1.30.0.tgz#5de8bad6ed113dd35705811767c13d9d06525257"
-  integrity sha512-VghRzk8wbNckWCab2fYEmZavd+onmq5UQEvQHOU0gFd/3O3aqSg5DnzbgKml6fZ7YZBFRr5iRMu7vyB4Onth7A==
+  version "1.31.0"
+  resolved "https://registry.yarnpkg.com/jotto_core/-/jotto_core-1.31.0.tgz#4ce75a0686c2c3188b94dd600b82e9a582cf8332"
+  integrity sha512-f5spdTyBVVLiEooAQ+aLxBWTXi5fLNmeJPAj8G0UNxM2CAA1xIjXScsZQL4xokDYx4tivS1D0k/6ES3AN6gCfg==
 
 mime-db@1.52.0:
   version "1.52.0"
