@@ -20,6 +20,7 @@ class Game extends Users<Player> {
   private _endedOn: Date | undefined
   private _reason: GameOverReason | undefined
   private _summary: GameSummary | undefined
+
   private _pickWordTimer: ReturnType<typeof setTimeout>
   private _gameOverTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -136,10 +137,14 @@ class Game extends Users<Player> {
     return this._summary
   }
 
-  public leave(userId: string): void {
-    this.remove(userId)
+  public leave(player: Player): void {
+    
+    // replace player with a zombie
+    // this allows gameplay to still happen even if player left
+    this.remove(player.userId)
+    this.all.push(player.toZombie())
 
-    if (this.all.length === 0) {
+    if (this.all.every(p => p.zombie)) {
       this.updateState(GameState.destroyed)
     }
   }

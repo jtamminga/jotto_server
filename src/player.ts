@@ -12,6 +12,7 @@ export default class Player extends User {
   private _guesses: Guess[] = []
   private _opponent: Player | undefined = undefined
   private _wonAt: number | undefined
+  private _zombie = false
 
   constructor(
     userData: UserData,
@@ -25,6 +26,10 @@ export default class Player extends User {
   // getters & setters
   // =================
 
+
+  public get zombie(): boolean {
+    return this._zombie
+  }
 
   public get word(): string {
     if (!this._word) {
@@ -113,6 +118,19 @@ export default class Player extends User {
 
   public setOpponent(player: Player) {
     this._opponent = player
+  }
+
+  public toZombie(): Player {
+    const player = new Player(this)
+    player._zombie = true
+    player._word = this._word
+    player._guesses = [...this._guesses]
+    player._opponent = this._opponent
+    player._wonAt = this._wonAt
+    player._connected = false
+    player._state = this._state
+
+    return player
   }
 
   public reset() {

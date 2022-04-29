@@ -157,7 +157,7 @@ function userReconnect(socket: JottoSocket, session: Session) {
   user.connected = true
 
   socket.join(lobby.code)
-  socket.to(lobby.code).emit('userConnect', user.userState())
+  socket.to(lobby.code).emit('userConnect', user.userState(), true)
   socket.emit('restore', lobby.userRestore(session.userId))
   eventBus.publish(UserEvents.userConnected(session.userId, true))
 }
@@ -224,7 +224,7 @@ function joinRoom(socket: JottoSocket, username: string, type: UserType) {
   console.groupEnd();
 
   // broadcast to all others that a user connected
-  socket.to(lobby.code).emit('userConnect', user.userState())
+  socket.to(lobby.code).emit('userConnect', user.userState(), false)
 
   // send all connected users including the user just connected
   // to just the connected user
@@ -316,7 +316,7 @@ function rejoinRoom(socket: JottoSocket) {
   console.groupEnd()
 
   // broadcast to all others that a user connected
-  socket.broadcast.emit('userConnect', player.userState());
+  socket.broadcast.emit('userConnect', player.userState(), false);
 
   // resend users when rejoining so user knows 
   // who is in the room already

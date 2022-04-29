@@ -73,24 +73,16 @@ class Lobby implements Disposable {
     return this._game
   }
 
-  // public get all(): User[] {
-  //   let users: User[]
-
-  //   if (this._state === 'ingame') {
-  //     users = this._game?.all ?? []
-  //   } else {
-  //     users = this._room.all
-  //   }
-    
-  //   return users.concat(this._observers)
-  // }
-
   public get observers(): Observer[] {
     return this._observers
   }
 
   public get lastActivityOn(): number {
     return this._lastActivityOn
+  }
+
+  private get allPlayers(): User[] {
+    return [...this.room.all, ...(this.game?.all ?? [])]
   }
 
 
@@ -168,7 +160,7 @@ class Lobby implements Disposable {
 
   public goBackToRoom(userId: string) {
     const player = this.getPlayer(userId)
-    this._game!.leave(userId)
+    this._game!.leave(player)
     player.reset()
     this._room.add(player)
   }
@@ -272,11 +264,15 @@ class Lobby implements Disposable {
 
       // if a user leaves while in a room
       // remove from the room too
-      if (user instanceof Player && this.room.includes(user) ) {
-        this.room.leave(user)
+      if (user instanceof Player) {
+        if (this.room.includes(user)) {
+          this.room.leave(user)
+        } else if (this.game?.includes(user)) {
+          this.game.leave(user)
+        }
       }
 
-      if ([...this.room.all, ...(this.game?.all ?? [])].every(user => user.didLeave)) {
+      if (this.allPlayers.every(player => player.didLeave)) {
         this._bus?.publish(LobbyEvents.create('lobby_empty', this))
       }
     }
