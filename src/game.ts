@@ -1,18 +1,20 @@
+import { autoInjectable } from 'tsyringe'
+import { filter, Subscription } from 'rxjs'
+import { addMilliseconds, addMinutes, differenceInSeconds, formatDuration, intervalToDuration } from 'date-fns'
+import { comparePlayers, GameConfig, GameOverReason, GameSummary, HostConfig, IllegalStateError } from 'jotto_core'
+import { v4 as createId } from 'uuid'
 import Player from './player'
 import { shuffle } from './utils'
 import { GameEvents, PlayerEvents } from './events'
 import { GameState, History } from './types'
 import { EventBus } from './eventBus'
-import { autoInjectable } from 'tsyringe'
-import { filter, Subscription } from 'rxjs'
 import { AppConfig } from './config'
-import { comparePlayers, GameConfig, GameOverReason, GameSummary, HostConfig, IllegalStateError } from 'jotto_core'
-import { addMilliseconds, addMinutes, differenceInSeconds, formatDuration, intervalToDuration } from 'date-fns'
 import Users from './users'
 
 @autoInjectable()
 class Game extends Users<Player> {
 
+  private _id: string
   private _state: GameState = GameState.pickingWords
   private _subscription: Subscription
   private _pickingWordOn: Date
@@ -33,6 +35,9 @@ class Game extends Users<Player> {
 
     // shuffle the players
     super(shuffle(players))
+
+    // generate a game id
+    this._id = createId()
 
     // make sure there is enough players
     if (players.length <= 1) {
@@ -66,6 +71,10 @@ class Game extends Users<Player> {
   // =================
 
 
+  public get id(): string {
+    return this._id
+  }
+
   public get state(): GameState {
     return this._state
   }
@@ -97,6 +106,7 @@ class Game extends Users<Player> {
 
   public config(): GameConfig {
     return {
+      gameId: this._id,
       pickWordLength: this._config!.pickWordLength,
       preGameLength: this._config!.preGameLength,
       gameLength: this._hostConfig.gameLength,
