@@ -160,6 +160,13 @@ class Lobby implements Disposable {
 
   public goBackToRoom(userId: string) {
     const player = this.getPlayer(userId)
+
+    // if player is already in room then stop here
+    if (this._room.includes(player)) {
+      console.warn(`[lobby] room already has player ${userId}`)
+      return
+    }
+
     this._game!.leave(player)
     player.reset()
     this._room.add(player)
