@@ -316,7 +316,7 @@ function rejoinRoom(socket: JottoSocket) {
   console.groupEnd()
 
   // broadcast to all others that a user connected
-  socket.broadcast.emit('userConnect', player.userState(), false);
+  socket.to(lobby.code).emit('userConnect', player.userState(), false);
 
   // resend users when rejoining so user knows 
   // who is in the room already
