@@ -9,10 +9,10 @@ import { GameEvents, PlayerEvents } from './events'
 import { GameState, History } from './types'
 import { EventBus } from './eventBus'
 import { AppConfig } from './config'
-import Users from './users'
+import UserMap from './UserMap'
 
 @autoInjectable()
-class Game extends Users<Player> {
+class Game extends UserMap<Player> {
 
   private _id: string
   private _state: GameState = GameState.pickingWords
@@ -126,7 +126,7 @@ class Game extends Users<Player> {
       throw new IllegalStateError('dates are not set properly')
     }
 
-    const playerSummaries = this.all
+    const playerSummaries = [...this.all]
       .sort((a, b) => comparePlayers(a.perf, b.perf))
       .map((p, i) => ({
         userId: p.userId,
@@ -151,8 +151,8 @@ class Game extends Users<Player> {
     
     // replace player with a zombie
     // this allows gameplay to still happen even if player left
-    this.remove(player.userId)
-    this.all.push(player.toZombie())
+    this.remove(player)
+    this.add(player.toZombie())
 
     if (this.all.every(p => p.zombie)) {
       this.updateState(GameState.destroyed)

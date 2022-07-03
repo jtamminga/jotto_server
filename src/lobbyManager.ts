@@ -40,10 +40,15 @@ export class LobbyManager {
   // ================
 
 
-  public create(): Lobby {
+  /**
+   * create a new lobby
+   * @param isPublic set the lobby to public or not
+   * @returns instance of the created lobby
+   */
+  public create(isPublic: boolean): Lobby {
     const code = this.generateUniqueCode()
 
-    const lobby = new Lobby(code)
+    const lobby = new Lobby(code, isPublic)
     this._lobbies.set(code, lobby)
 
     this._bus.publish(LobbyEvents.create('lobby_created', lobby))

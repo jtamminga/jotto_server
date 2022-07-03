@@ -17,16 +17,18 @@ export type LobbyState =
 @autoInjectable()
 class Lobby implements Disposable {
 
-  private _room = new Room<Player>()
+  private _room = new Room()
   private _game: Game | undefined = undefined
   
   private _state: LobbyState = 'inroom'
   private _observers: Observer[] = []
   private _subscriptions: Subscription[] = []
+  private _createdOn: number = Date.now()
   private _lastActivityOn: number = Date.now()
 
   constructor(
     private _code: string,
+    private _public: boolean,
     private _bus?: EventBus
   ) {
     this._subscriptions.push(_bus!.events$
@@ -61,7 +63,11 @@ class Lobby implements Disposable {
     return this._code
   }
 
-  public get room(): Room<Player> {
+  public get isPublic(): boolean {
+    return this._public
+  }
+
+  public get room(): Room {
     return this._room
   }
 
@@ -75,6 +81,10 @@ class Lobby implements Disposable {
 
   public get observers(): Observer[] {
     return this._observers
+  }
+
+  public get createdOn(): number {
+    return this._createdOn
   }
 
   public get lastActivityOn(): number {
@@ -117,8 +127,8 @@ class Lobby implements Disposable {
     return user
   }
 
-  public getUsersFor(user: User): User[] {
-    let users: User[]
+  public getUsersFor(user: User): ReadonlyArray<User> {
+    let users: ReadonlyArray<User>
 
     switch (user.state) {
       case 'in_room':

@@ -1,8 +1,8 @@
 import { IllegalStateError } from 'jotto_core'
-import User from './user'
-import Users from './users'
+import Player from './player'
+import UserMap from './UserMap'
 
-export default class Room<T extends User> extends Users<T> {
+export default class Room extends UserMap<Player> {
 
   private _isOpen: boolean = true
 
@@ -21,7 +21,7 @@ export default class Room<T extends User> extends Users<T> {
   }
 
   public get isFull(): boolean {
-    return this.all.length == this.numPlayers
+    return this.size == this.numPlayers
   }
 
 
@@ -30,7 +30,7 @@ export default class Room<T extends User> extends Users<T> {
   // ================
 
 
-  public add(user: T) {
+  public add(player: Player) {
     if (!this._isOpen) {
       throw new IllegalStateError('Room is no longer open.')
     }
@@ -39,11 +39,11 @@ export default class Room<T extends User> extends Users<T> {
       throw new IllegalStateError('Room is already full.')
     }
 
-    super.add(user)
+    super.add(player)
   }
 
-  public leave(user: T) {
-    super.remove(user.userId)
+  public leave(player: Player) {
+    super.remove(player)
   }
 
   public close() {

@@ -1,47 +1,16 @@
+# High Level Architecture
+
+The server is a basic Socket.io server
+
+## Entity Diagram
+
 ```mermaid
-classDiagram
+erDiagram
+  server ||--|| lobby_manager : has
+  lobby_manager ||--o{ lobby : has
+  lobby ||--|| room : has
+  lobby ||--o| game : has
 
-  class Server {
-    room
-    game
-  }
-
-  class Room {
-    players
-    full
-    constructor()
-    addPlayer()
-  }
-
-  class Game {
-    state
-    constructor(room)
-    guess(player, guess)
-  }
-
-  class Player {
-    userId
-    username
-    word
-    guesses
-    won
-    opponent
-
-    constructor(userId, username)
-    setOpponent(opponent)
-    addGuess(word)
-    setWord(word)
-    hasWord()
-  }
-
-  class User {
-
-  }
+  server ||--|| pool : has
+  pool ||--|| lobby_manager: uses
 ```
-
-# Game ModesTypes
-
-1. Fastest player to guess opponent wins
-2. Player with the least amount of guesses wins
-
-All these modes support simultaneous turns

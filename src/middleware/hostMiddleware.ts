@@ -19,7 +19,7 @@ export function hostMiddleware(socket: JottoSocket, next: NextFn): void {
   }
 
   if (socket.data.host) {
-    const lobby = lobbyManager.create()
+    const lobby = lobbyManager.create(false)
     socket.data.lobbyCode = lobby.code
     log.info(`created lobby ${lobby.code}`)
   }
