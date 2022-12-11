@@ -149,38 +149,4 @@ export default class Player extends User {
       wonAt: this._wonAt
     }
   }
-
-
-  //
-  // Static functions
-  // ================
-
-
-  /**
-   * Sort winners based on least number of guesses first.
-   * If tied then the person who won first.
-   */
-  static sortWinners(a: Player, b: Player): number {
-    if (a.guesses.length === b.guesses.length) {
-      return a.wonAt! - b.wonAt!
-    }
-
-    return a.guesses.length - b.guesses.length
-  }
-
-  /**
-   * Sort losers based on their best guess score.
-   * If tied then the person who had the least guesses.
-   */
-  static sortLosers(a: Player, b: Player): number {
-    const aBest = a.bestGuess
-    const bBest = b.bestGuess
-
-    if (aBest === bBest) {
-      return a.guesses.length - b.guesses.length
-    }
-
-    // descending (highest first)
-    return bBest - aBest
-  }
 }

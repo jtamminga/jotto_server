@@ -128,10 +128,9 @@ class Game extends Users<Player> {
 
     const playerSummaries = this.all
       .sort((a, b) => comparePlayers(a.perf, b.perf))
-      .map((p, i) => ({
+      .map(p => ({
         userId: p.userId,
         username: p.username,
-        place: i + 1,
         word: p.word,
         numGuesses: p.guesses.length,
         wonAt: p.wonAt,
