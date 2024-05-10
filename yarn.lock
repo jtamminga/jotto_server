@@ -163,10 +163,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jotto_core@npm:^1.32.3":
-  version: 1.32.3
-  resolution: "jotto_core@npm:1.32.3"
-  checksum: 10c0/42f2d4241d4e2145819da740bb130b53d371d34d283dcaf089bab1161af60dae4bb8125b2497e682b1620b48ad630b6802c68ee0855996cdb146eee207c5a038
+"jotto_core@npm:1.33.0":
+  version: 1.33.0
+  resolution: "jotto_core@npm:1.33.0"
+  checksum: 10c0/aa7a49dcc49f568145b31cb558bf28b406fd65e60483a722379da958ceafe356c0b889d79cbe0897562d74277454d5715b79cee19e1188ae01f68d825bb559d1
   languageName: node
   linkType: hard
 
@@ -178,7 +178,7 @@ __metadata:
     "@types/socket.io": "npm:^2.1.13"
     colors: "npm:^1.4.0"
     date-fns: "npm:^2.28.0"
-    jotto_core: "npm:^1.32.3"
+    jotto_core: "npm:1.33.0"
     reflect-metadata: "npm:^0.1.13"
     rxjs: "npm:^7.4.0"
     socket.io: "npm:^4.4.1"

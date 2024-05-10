@@ -13,6 +13,7 @@ export default class Player extends User {
   private _opponent: Player | undefined = undefined
   private _wonAt: number | undefined
   private _zombie = false
+  private _totalWins = 0
 
   constructor(
     userData: UserData,
@@ -68,6 +69,13 @@ export default class Player extends User {
       g.common > max ? g.common : max, 0)
   }
 
+  /**
+   * number of wins for this lobby
+   */
+  public get totalWins(): number {
+    return this._totalWins
+  }
+
   public get perf(): PlayerPerf {
     return {
       numGuesses: this._guesses.length,
@@ -120,6 +128,10 @@ export default class Player extends User {
     this._opponent = player
   }
 
+  public addWin() {
+    this._totalWins += 1
+  }
+
   public toZombie(): Player {
     const player = new Player(this)
     player._zombie = true
@@ -148,5 +160,10 @@ export default class Player extends User {
       ready: this.hasWord,
       wonAt: this._wonAt
     }
+  }
+
+  public leftLobby(): void {
+    super.leftLobby()
+    this._totalWins = 0
   }
 }

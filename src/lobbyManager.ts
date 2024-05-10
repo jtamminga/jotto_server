@@ -80,6 +80,7 @@ export class LobbyManager {
     this._lobbies.delete(lobby.code)
     this._bus.publish(LobbyEvents.create('lobby_destroyed', lobby))
     console.log(`lobby ${lobby.code} has been destroyed`)
+    submitStats(lobby)
   }
 
   private healthCheck() {
@@ -118,9 +119,9 @@ export class LobbyManager {
   private generateUniqueCode(): string {
     const curCodes = Array.from(this._lobbies.keys())
     let newCode: string | undefined
-
+  
     for (let i = 0; i < 100; i++) {
-      const code = this.generateCode()
+      const code = generateCode()
       if (!curCodes.includes(code)) {
         newCode = code
         break
@@ -130,16 +131,57 @@ export class LobbyManager {
     if (!newCode) {
       throw new Error('could not create unique lobby code')
     }
-
+  
     return newCode
   }
 
-  /**
-   * Generate a four digit pin
-   * @returns four digit pin
-   */
-  private generateCode(): string {
-    return (Math.floor(Math.random() * 10000) + 10000).toString().substring(1)
+}
+
+
+// #region helper functions
+
+
+/**
+ * Generate a four digit pin
+ * @returns four digit pin
+ */
+function generateCode(): string {
+  return (Math.floor(Math.random() * 10000) + 10000).toString().substring(1)
+}
+
+function submitStats(lobby: Lobby) {
+  const GAMEKEEPER_URL = process.env.GAMEKEEPER_URL
+
+  if (GAMEKEEPER_URL === undefined) {
+    console.log('no gamekeeper url specified: skipping submitting stats')
+    return
   }
 
+  const RECORD_ENDPOINT = GAMEKEEPER_URL + '/playthroughs'
+
+  const stats = {
+    game: 'vying',
+    // playerwins keeps track of all users, even ones that did leave earlier games
+    players: lobby.playerWins.map(player => player.username),
+    scores: lobby.playerWins.map(stats => ({
+      player: stats.username,
+      score: stats.totalWins
+    }))
+  }
+
+  console.info(`submitting stats to ${RECORD_ENDPOINT}:`, stats)
+  fetch(RECORD_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(stats)
+  }).then((res) => {
+    if (res.ok) {
+      console.log('successfully submitted stats')
+    } else {
+      console.error('failed to submit stats')
+    }
+  })
 }
+
+
+// #endregion

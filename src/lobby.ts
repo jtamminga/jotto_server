@@ -1,4 +1,4 @@
-import { UserRestore, GameConfig, GameSummary, HostConfig } from 'jotto_core'
+import { GameConfig, GameSummary, HostConfig, UserData, UserRestore } from 'jotto_core'
 import { filter, Subscription } from 'rxjs'
 import { autoInjectable } from 'tsyringe'
 import { EventBus } from './eventBus'
@@ -14,6 +14,11 @@ export type LobbyState =
   | 'inroom'
   | 'ingame'
 
+interface PlayerStateWithWins extends UserData {
+  totalWins: number
+}
+
+
 @autoInjectable()
 class Lobby implements Disposable {
 
@@ -24,6 +29,7 @@ class Lobby implements Disposable {
   private _observers: Observer[] = []
   private _subscriptions: Subscription[] = []
   private _lastActivityOn: number = Date.now()
+  private _playerWins: PlayerStateWithWins[] = []
 
   constructor(
     private _code: string,
@@ -79,6 +85,10 @@ class Lobby implements Disposable {
 
   public get lastActivityOn(): number {
     return this._lastActivityOn
+  }
+
+  public get playerWins(): PlayerStateWithWins[] {
+    return this._playerWins
   }
 
   private get allPlayers(): User[] {
@@ -260,24 +270,24 @@ class Lobby implements Disposable {
     }
 
     if (event.wasIntended) {
-      // first mark a user as left
-      // this allows restores mid game with a user that left
-      user.leftLobby()
-
-      // if a game is not going on then actually remove from the lobby
-      // if (this._state === 'inroom') {
-      //   this.remove(event.userId)
-      // }
-
-      // if a user leaves while in a room
-      // remove from the room too
       if (user instanceof Player) {
+        this._playerWins.push({
+          ...user.userState(),
+          totalWins: user.totalWins
+        })
+
+        // if a user leaves while in a room
+        // remove from the room too
         if (this.room.includes(user)) {
           this.room.leave(user)
         } else if (this.game?.includes(user)) {
           this.game.leave(user)
         }
       }
+
+      // first mark a user as left
+      // this allows restores mid game with a user that left
+      user.leftLobby()
 
       if (this.allPlayers.every(player => player.didLeave)) {
         this._bus?.publish(LobbyEvents.create('lobby_empty', this))

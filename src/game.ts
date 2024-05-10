@@ -126,15 +126,18 @@ class Game extends Users<Player> {
       throw new IllegalStateError('dates are not set properly')
     }
 
-    const playerSummaries = this.all
-      .sort((a, b) => comparePlayers(a.perf, b.perf))
+    const playersByBestPerf = this.all.sort((a, b) => comparePlayers(a.perf, b.perf))
+    playersByBestPerf[0].addWin()
+
+    const playerSummaries = playersByBestPerf
       .map(p => ({
         userId: p.userId,
         username: p.username,
         word: p.word,
         numGuesses: p.guesses.length,
         wonAt: p.wonAt,
-        bestGuess: p.bestGuess
+        bestGuess: p.bestGuess,
+        totalWins: p.totalWins
       }))
 
     this._summary = {

@@ -1,5 +1,7 @@
 FROM node:lts-bullseye-slim
 
+ENV GAMEKEEPER_URL=http://192.168.0.100:3000
+
 # Create app directory
 WORKDIR /usr/src/app
 
