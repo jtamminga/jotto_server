@@ -180,6 +180,8 @@ function submitStats(lobby: Lobby) {
     } else {
       console.error('failed to submit stats')
     }
+  }).catch(err => {
+    console.error('error trying to submit stats', err)
   })
 }
 
